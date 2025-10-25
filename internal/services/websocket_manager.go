@@ -13,7 +13,7 @@ import (
 
 // WebSocket连接管理器
 type WebSocketManager struct {
-	connections         map[string]*websocket.Conn            // connectionID -> WebSocket连接
+	connections         map[string][]*websocket.Conn          // 🔥 修改：connectionID -> []WebSocket连接（支持多端共享）
 	userToConnections   map[string][]string                   // userID -> []connectionID (支持一个用户多个连接)
 	sessionToConnection map[string]string                     // sessionID -> connectionID (精确定向推送)
 	callbacks           map[string]chan models.CallbackResult // callbackID -> 结果通道
@@ -22,36 +22,43 @@ type WebSocketManager struct {
 
 // 全局WebSocket管理器实例
 var GlobalWSManager = &WebSocketManager{
-	connections:         make(map[string]*websocket.Conn),
+	connections:         make(map[string][]*websocket.Conn), // 🔥 修改：支持多个连接
 	userToConnections:   make(map[string][]string),
 	sessionToConnection: make(map[string]string),
 	callbacks:           make(map[string]chan models.CallbackResult),
 }
 
-// 用户连接注册 - 支持工作空间级别的连接隔离
+// 用户连接注册 - 支持工作空间级别的连接隔离，支持多端共享
 func (wsm *WebSocketManager) RegisterUser(connectionID string, conn *websocket.Conn) {
 	wsm.mutex.Lock()
 	defer wsm.mutex.Unlock()
 
 	log.Printf("🔗 [连接注册] ===== 开始注册用户连接 =====")
 	log.Printf("🔗 [连接注册] 输入参数: connectionID=%s", connectionID)
-	log.Printf("🔗 [连接注册] 当前连接数: %d", len(wsm.connections))
 
-	// 🔥 简化：连接ID就是用户ID（或用户ID_ws_工作空间哈希格式）
+	// 提取用户ID
 	userID := wsm.extractUserIDFromConnectionID(connectionID)
 	log.Printf("🔗 [连接注册] 从连接ID提取用户ID: %s", userID)
 
-	// 🔥 修复：检查是否存在相同的连接ID（同一工作空间重连）
-	if oldConn, exists := wsm.connections[connectionID]; exists {
-		oldConn.Close()
-		log.Printf("🔗 [连接注册] 🔄 连接 %s 的旧连接已关闭，建立新连接", connectionID)
-	} else {
-		log.Printf("🔗 [连接注册] 🆕 新连接注册: %s (用户: %s)", connectionID, userID)
-	}
+	// 🔥 核心改动：追加连接到数组，不是替换
+	if existingConns, exists := wsm.connections[connectionID]; exists {
+		// 检查是否重复添加同一个连接
+		for _, existingConn := range existingConns {
+			if existingConn == conn {
+				log.Printf("🔗 [连接注册] ⚠️ 连接已存在，跳过重复注册")
+				return
+			}
+		}
 
-	// 注册新连接
-	wsm.connections[connectionID] = conn
-	log.Printf("🔗 [连接注册] ✅ 连接已存储到连接池")
+		// 追加新连接到数组
+		wsm.connections[connectionID] = append(existingConns, conn)
+		log.Printf("🔗 [连接注册] ➕ 追加连接: %s (用户: %s, 当前共 %d 个连接)",
+			connectionID, userID, len(wsm.connections[connectionID]))
+	} else {
+		// 首次连接，创建新数组
+		wsm.connections[connectionID] = []*websocket.Conn{conn}
+		log.Printf("🔗 [连接注册] 🆕 首次连接: %s (用户: %s)", connectionID, userID)
+	}
 
 	// 更新用户到连接的映射
 	if wsm.userToConnections[userID] == nil {
@@ -71,15 +78,19 @@ func (wsm *WebSocketManager) RegisterUser(connectionID string, conn *websocket.C
 	if !found {
 		wsm.userToConnections[userID] = append(wsm.userToConnections[userID], connectionID)
 		log.Printf("🔗 [连接注册] ✅ 添加连接到用户映射: %s → %s", userID, connectionID)
-	} else {
-		log.Printf("🔗 [连接注册] ℹ️ 连接已存在于用户映射中: %s → %s", userID, connectionID)
 	}
 
-	log.Printf("🔗 [连接注册] ✅ 连接 %s 已注册 (用户 %s 共有 %d 个连接，总连接数: %d)",
-		connectionID, userID, len(wsm.userToConnections[userID]), len(wsm.connections))
+	// 统计总连接数
+	totalConns := 0
+	for _, conns := range wsm.connections {
+		totalConns += len(conns)
+	}
+
+	log.Printf("🔗 [连接注册] ✅ 连接 %s 已注册 (用户 %s, 该工作空间 %d 个连接, 系统总连接数: %d)",
+		connectionID, userID, len(wsm.connections[connectionID]), totalConns)
 	log.Printf("🔗 [连接注册] ===== 用户连接注册完成，启动连接监听 =====")
 
-	// 启动连接监听
+	// 🔥 关键：为每个连接启动独立的监听goroutine
 	go wsm.handleConnection(connectionID, conn)
 }
 
@@ -118,55 +129,125 @@ func (wsm *WebSocketManager) ExtractWorkspaceHashFromConnectionID(connectionID s
 	return wsm.extractWorkspaceHashFromConnectionID(connectionID)
 }
 
-// 连接注销 - 支持工作空间级别的连接管理
-func (wsm *WebSocketManager) UnregisterUser(connectionID string) {
+// 连接注销 - 支持工作空间级别的连接管理，精确移除单个连接
+// 🔥 重要：增加conn参数，精确定位要移除的连接
+func (wsm *WebSocketManager) UnregisterUser(connectionID string, conn *websocket.Conn) {
 	wsm.mutex.Lock()
 	defer wsm.mutex.Unlock()
 
 	// 提取用户ID
 	userID := wsm.extractUserIDFromConnectionID(connectionID)
 
-	if conn, exists := wsm.connections[connectionID]; exists {
-		conn.Close()
-		delete(wsm.connections, connectionID)
+	log.Printf("🔗 [连接注销] 开始注销: connectionID=%s, userID=%s", connectionID, userID)
 
-		// 🔥 新增：清理相关的会话映射
-		sessionsToRemove := []string{}
-		for sessionID, cid := range wsm.sessionToConnection {
-			if cid == connectionID {
-				sessionsToRemove = append(sessionsToRemove, sessionID)
+	if existingConns, exists := wsm.connections[connectionID]; exists {
+		// 🔥 核心逻辑：从数组中移除特定连接（通过指针比较）
+		newConns := []*websocket.Conn{}
+		removed := false
+
+		for _, existingConn := range existingConns {
+			if existingConn == conn {
+				// 找到要移除的连接，不添加到newConns
+				removed = true
+				log.Printf("🔗 [连接注销] 🎯 找到要移除的连接")
+			} else {
+				// 保留其他连接
+				newConns = append(newConns, existingConn)
 			}
 		}
-		for _, sessionID := range sessionsToRemove {
-			delete(wsm.sessionToConnection, sessionID)
-			log.Printf("[WebSocket] 🗑️ 自动清理会话映射: sessionID=%s, connectionID=%s", sessionID, connectionID)
+
+		if !removed {
+			log.Printf("🔗 [连接注销] ⚠️ 连接不存在于数组中: %s", connectionID)
+			return
 		}
 
-		// 从用户连接映射中移除
-		if connections, userExists := wsm.userToConnections[userID]; userExists {
-			// 删除指定的连接ID
-			newConnections := []string{}
-			for _, cid := range connections {
-				if cid != connectionID {
-					newConnections = append(newConnections, cid)
+		// 🔥 判断：是否还有其他连接
+		if len(newConns) > 0 {
+			// 🔥 关键：还有其他连接，更新数组，不删除key
+			wsm.connections[connectionID] = newConns
+			log.Printf("🔗 [连接注销] ➖ 移除一个连接: %s (剩余 %d 个连接)",
+				connectionID, len(newConns))
+		} else {
+			// 🔥 所有连接都断开了，删除整个key
+			delete(wsm.connections, connectionID)
+			log.Printf("🔗 [连接注销] ❌ 所有连接已断开: %s", connectionID)
+
+			// 🔥 清理会话映射（只在所有连接都断开时才清理）
+			sessionsToRemove := []string{}
+			for sessionID, cid := range wsm.sessionToConnection {
+				if cid == connectionID {
+					sessionsToRemove = append(sessionsToRemove, sessionID)
 				}
 			}
+			for _, sessionID := range sessionsToRemove {
+				delete(wsm.sessionToConnection, sessionID)
+				log.Printf("🔗 [连接注销] 🗑️ 清理会话映射: sessionID=%s", sessionID)
+			}
 
-			if len(newConnections) == 0 {
-				// 如果用户没有其他连接，删除用户记录
-				delete(wsm.userToConnections, userID)
-				log.Printf("[WebSocket] ❌ 连接 %s 已断开，用户 %s 所有连接已关闭 (剩余总连接: %d)",
-					connectionID, userID, len(wsm.connections))
-			} else {
-				// 更新用户的连接列表
-				wsm.userToConnections[userID] = newConnections
-				log.Printf("[WebSocket] ❌ 连接 %s 已断开，用户 %s 还有 %d 个连接 (剩余总连接: %d)",
-					connectionID, userID, len(newConnections), len(wsm.connections))
+			// 清理用户映射
+			if connections, userExists := wsm.userToConnections[userID]; userExists {
+				newConnections := []string{}
+				for _, cid := range connections {
+					if cid != connectionID {
+						newConnections = append(newConnections, cid)
+					}
+				}
+				if len(newConnections) == 0 {
+					delete(wsm.userToConnections, userID)
+					log.Printf("🔗 [连接注销] 🗑️ 清理用户映射: %s", userID)
+				} else {
+					wsm.userToConnections[userID] = newConnections
+				}
 			}
 		}
+
+		// 🔥 关键：只关闭当前这个conn，不影响其他连接
+		conn.Close()
+		log.Printf("🔗 [连接注销] ✅ 连接已关闭")
 	} else {
-		log.Printf("[WebSocket] ⚠️ 尝试注销不存在的连接: %s", connectionID)
+		log.Printf("🔗 [连接注销] ⚠️ connectionID不存在: %s", connectionID)
 	}
+}
+
+// 🔥 新增：向指定connectionID的所有连接广播消息
+func (wsm *WebSocketManager) BroadcastToConnectionID(connectionID string, message interface{}) error {
+	wsm.mutex.RLock()
+	conns, exists := wsm.connections[connectionID]
+	wsm.mutex.RUnlock()
+
+	if !exists || len(conns) == 0 {
+		return fmt.Errorf("连接 %s 不存在或无活跃连接", connectionID)
+	}
+
+	log.Printf("📡 [消息广播] 向 %s 的 %d 个连接广播消息", connectionID, len(conns))
+
+	// 遍历所有连接，发送消息
+	var lastErr error
+	successCount := 0
+	failedConns := []*websocket.Conn{}
+
+	for i, conn := range conns {
+		if err := conn.WriteJSON(message); err != nil {
+			log.Printf("❌ [消息广播] 连接 #%d 发送失败: %v", i, err)
+			lastErr = err
+			failedConns = append(failedConns, conn)
+		} else {
+			successCount++
+			log.Printf("✅ [消息广播] 连接 #%d 发送成功", i)
+		}
+	}
+
+	// 清理失败的连接（异步清理，不阻塞当前操作）
+	if len(failedConns) > 0 {
+		go func() {
+			for _, failedConn := range failedConns {
+				wsm.UnregisterUser(connectionID, failedConn)
+			}
+		}()
+	}
+
+	log.Printf("📡 [消息广播] 完成: 成功 %d/%d 个连接", successCount, len(conns))
+	return lastErr
 }
 
 // 🔥 新增：注册会话到连接的映射
@@ -219,7 +300,7 @@ func (wsm *WebSocketManager) UnregisterSession(sessionID string) {
 	}
 }
 
-// 🔥 新增：基于sessionId精确推送指令
+// 🔥 新增：基于sessionId推送指令（支持多端广播）
 func (wsm *WebSocketManager) PushInstructionToSession(sessionID string, instruction models.LocalInstruction) (chan models.CallbackResult, error) {
 	wsm.mutex.RLock()
 
@@ -227,19 +308,19 @@ func (wsm *WebSocketManager) PushInstructionToSession(sessionID string, instruct
 	connectionID, sessionExists := wsm.sessionToConnection[sessionID]
 	if !sessionExists {
 		wsm.mutex.RUnlock()
-		log.Printf("[WebSocket] ⚠️ 精确推送失败：会话 %s 未注册", sessionID)
+		log.Printf("[指令推送] ⚠️ 会话 %s 未注册", sessionID)
 		return nil, fmt.Errorf("会话 %s 未注册", sessionID)
 	}
 
-	// 检查连接是否仍然有效
-	targetConn, connExists := wsm.connections[connectionID]
-	if !connExists {
+	// 🔥 修改：检查该connectionID下是否有活跃连接
+	conns, connExists := wsm.connections[connectionID]
+	if !connExists || len(conns) == 0 {
 		wsm.mutex.RUnlock()
 		// 清理无效的会话映射
 		wsm.mutex.Lock()
 		delete(wsm.sessionToConnection, sessionID)
 		wsm.mutex.Unlock()
-		log.Printf("[WebSocket] ⚠️ 精确推送失败：会话 %s 对应的连接 %s 已断开", sessionID, connectionID)
+		log.Printf("[指令推送] ⚠️ 会话 %s 对应的连接 %s 已断开", sessionID, connectionID)
 		return nil, fmt.Errorf("会话 %s 对应的连接已断开", sessionID)
 	}
 
@@ -251,37 +332,38 @@ func (wsm *WebSocketManager) PushInstructionToSession(sessionID string, instruct
 	wsm.callbacks[instruction.CallbackID] = callbackChan
 	wsm.mutex.Unlock()
 
-	// 发送指令
+	// 构建消息
 	message := map[string]interface{}{
 		"type": "instruction",
 		"data": instruction,
 	}
 
 	userID := wsm.extractUserIDFromConnectionID(connectionID)
-	log.Printf("[WebSocket] 🎯 精确推送指令: sessionID=%s → connectionID=%s (用户: %s)",
-		sessionID, connectionID, userID)
-	log.Printf("[WebSocket] 📋 指令详情: type=%s, callbackId=%s, target=%s",
+	log.Printf("📡 [指令推送] sessionID=%s → connectionID=%s (用户: %s, 连接数: %d)",
+		sessionID, connectionID, userID, len(conns))
+	log.Printf("📋 [指令推送] 指令详情: type=%s, callbackId=%s, target=%s",
 		instruction.Type, instruction.CallbackID, instruction.Target)
 
-	if err := targetConn.WriteJSON(message); err != nil {
+	// 🔥 核心改动：使用广播替代单播
+	if err := wsm.BroadcastToConnectionID(connectionID, message); err != nil {
 		wsm.mutex.Lock()
 		delete(wsm.callbacks, instruction.CallbackID)
 		wsm.mutex.Unlock()
 		close(callbackChan)
-		log.Printf("[WebSocket] ❌ 精确推送指令失败: %v", err)
-		return nil, fmt.Errorf("发送指令失败: %v", err)
+		log.Printf("❌ [指令推送] 广播失败: %v", err)
+		return nil, fmt.Errorf("推送指令失败: %v", err)
 	}
 
-	log.Printf("[WebSocket] ✅ 指令已精确推送到会话 %s (连接: %s): %s (等待回调: %s)",
-		sessionID, connectionID, instruction.Type, instruction.CallbackID)
+	log.Printf("✅ [指令推送] 指令已广播到 %d 个连接 (等待回调: %s)",
+		len(conns), instruction.CallbackID)
 	return callbackChan, nil
 }
 
-// 推送指令给指定用户 - 支持多工作空间连接 (保持向后兼容)
+// 推送指令给指定用户 - 支持多工作空间连接（支持多端广播）
 func (wsm *WebSocketManager) PushInstruction(userID string, instruction models.LocalInstruction) (chan models.CallbackResult, error) {
 	wsm.mutex.RLock()
 
-	// 🔥 修复：查找用户的所有连接
+	// 查找用户的所有connectionID
 	connectionIDs, userExists := wsm.userToConnections[userID]
 	if !userExists || len(connectionIDs) == 0 {
 		wsm.mutex.RUnlock()
@@ -289,22 +371,21 @@ func (wsm *WebSocketManager) PushInstruction(userID string, instruction models.L
 		return nil, fmt.Errorf("用户 %s 未连接", userID)
 	}
 
-	// 🔥 策略：推送到用户的第一个活跃连接（主要工作空间）
-	// 未来可以根据指令类型决定推送策略（广播 vs 单播）
-	var targetConn *websocket.Conn
+	// 🔥 策略：推送到用户的第一个活跃connectionID（主要工作空间）
 	var targetConnectionID string
+	var targetConns []*websocket.Conn
 
 	for _, connectionID := range connectionIDs {
-		if conn, exists := wsm.connections[connectionID]; exists {
-			targetConn = conn
+		if conns, exists := wsm.connections[connectionID]; exists && len(conns) > 0 {
 			targetConnectionID = connectionID
+			targetConns = conns
 			break
 		}
 	}
 
 	wsm.mutex.RUnlock()
 
-	if targetConn == nil {
+	if targetConnectionID == "" || len(targetConns) == 0 {
 		log.Printf("[WebSocket] ⚠️ 推送失败：用户 %s 的所有连接都不可用", userID)
 		return nil, fmt.Errorf("用户 %s 的连接不可用", userID)
 	}
@@ -315,17 +396,18 @@ func (wsm *WebSocketManager) PushInstruction(userID string, instruction models.L
 	wsm.callbacks[instruction.CallbackID] = callbackChan
 	wsm.mutex.Unlock()
 
-	// 发送指令 - 包装为客户端期望的格式
+	// 构建消息
 	message := map[string]interface{}{
 		"type": "instruction",
 		"data": instruction,
 	}
 
-	log.Printf("[WebSocket] 📤 开始推送指令到用户 %s (连接: %s)", userID, targetConnectionID)
+	log.Printf("[WebSocket] 📤 开始推送指令到用户 %s (连接: %s, 连接数: %d)", userID, targetConnectionID, len(targetConns))
 	log.Printf("[WebSocket] 📋 指令详情: type=%s, callbackId=%s, target=%s",
 		instruction.Type, instruction.CallbackID, instruction.Target)
 
-	if err := targetConn.WriteJSON(message); err != nil {
+	// 🔥 核心改动：使用广播替代单播
+	if err := wsm.BroadcastToConnectionID(targetConnectionID, message); err != nil {
 		wsm.mutex.Lock()
 		delete(wsm.callbacks, instruction.CallbackID)
 		wsm.mutex.Unlock()
@@ -334,8 +416,8 @@ func (wsm *WebSocketManager) PushInstruction(userID string, instruction models.L
 		return nil, fmt.Errorf("发送指令失败: %v", err)
 	}
 
-	log.Printf("[WebSocket] ✅ 指令已推送到用户 %s 连接 %s: %s (等待回调: %s)",
-		userID, targetConnectionID, instruction.Type, instruction.CallbackID)
+	log.Printf("[WebSocket] ✅ 指令已广播到用户 %s 的 %d 个连接: %s (等待回调: %s)",
+		userID, len(targetConns), instruction.Type, instruction.CallbackID)
 	return callbackChan, nil
 }
 
@@ -369,10 +451,25 @@ func (wsm *WebSocketManager) HandleCallback(callbackID string, result models.Cal
 
 // 处理WebSocket连接
 func (wsm *WebSocketManager) handleConnection(connectionID string, conn *websocket.Conn) {
-	defer wsm.UnregisterUser(connectionID)
+	// 🔥 重要：传入具体的conn引用，确保注销时精确移除
+	defer wsm.UnregisterUser(connectionID, conn)
 
 	userID := wsm.extractUserIDFromConnectionID(connectionID)
 	log.Printf("[WebSocket] 🚀 开始处理连接 %s (用户: %s)", connectionID, userID)
+
+	// 🔥 新增：立即发送连接成功确认消息
+	confirmMessage := map[string]interface{}{
+		"type":         "connected",
+		"connectionId": connectionID,
+		"userId":       userID,
+		"message":      "WebSocket连接已建立",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	if err := conn.WriteJSON(confirmMessage); err != nil {
+		log.Printf("[WebSocket] ❌ 发送连接确认消息失败: %v", err)
+		return
+	}
+	log.Printf("[WebSocket] ✅ 已发送连接确认消息: connectionID=%s", connectionID)
 
 	// 设置读取超时 - 调整为更宽松的超时时间
 	conn.SetReadDeadline(time.Now().Add(90 * time.Second)) // 从60秒调整为90秒

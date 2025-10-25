@@ -423,9 +423,9 @@ class ContextKeeperExtension {
             this.websocket = new WebSocket(fullURL);
             
             this.websocket.onopen = async () => {
-                this.log('[WebSocket] 🎉 连接建立成功！');
+                this.log('[WebSocket] 🎉 WebSocket协议连接建立！等待服务端确认...');
                 this.wsConnectionState = 'connected';
-                this.updateStatusBar('已连接', 'lightgreen');
+                this.updateStatusBar('连接中...', 'yellow');
                 this.startHeartbeat();
                 
                 // 🔥 修复：连接成功后，停止连接检查循环，避免干扰
@@ -434,8 +434,8 @@ class ContextKeeperExtension {
                 // 🔥 新增：注册当前活跃会话到WebSocket连接
                 await this.registerActiveSession();
                 
-                // 显示成功通知
-                vscode.window.showInformationMessage('Context-Keeper WebSocket连接成功');
+                // 🔥 注意：不在这里显示通知，等待服务端的确认消息
+                // 服务端会发送 'connected' 类型消息来确认连接成功
             };
             
             this.websocket.onmessage = (event) => {
@@ -638,6 +638,14 @@ class ContextKeeperExtension {
             }
             
             switch (message.type) {
+                case 'connected':
+                    // 🔥 新增：处理服务端的连接确认消息
+                    this.log(`[WebSocket] ✅ 服务端确认连接成功: ${message.connectionId}`);
+                    this.log(`[WebSocket] 👤 用户ID: ${message.userId}`);
+                    this.log(`[WebSocket] 💬 消息: ${message.message}`);
+                    this.updateStatusBar('已连接', 'lightgreen');
+                    vscode.window.showInformationMessage(`✅ ${message.message}`);
+                    break;
                 case 'instruction':
                     this.executeWebSocketInstruction(message.data);
                     break;
