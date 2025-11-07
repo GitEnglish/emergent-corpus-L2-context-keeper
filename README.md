@@ -1,95 +1,98 @@
-<div align="center" style="margin: 40px 0;">
+<div align="center">
 
-<div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 30px;">
-<img src="docs/img/27a5a425-c543-49e9-bd3f-c9d8c9445f2a.jpeg" alt="Context-Keeper" width="80" height="80" style="border-radius: 20px;"/>
-<span style="font-size: 48px; font-weight: bold; color: #1e293b;">Context-Keeper</span>
-</div>
+<p align="center">
+  <img src="docs/img/elephant.png" alt="Context-Keeper Logo" width="120"/>
+</p>
 
-<h3><a href="README-EN.md">English</a> | <a href="README.md">简体中文</a></h3>
+# Context-Keeper
 
-**基于LLM驱动的智能记忆与上下文管理系统**
+**LLM-Driven Intelligent Memory & Context Management System**
 
-*重新定义AI助手的记忆边界，让每一次对话都有意义*
+*Redefining AI Assistant Memory Boundaries - Making Every Conversation Meaningful*
 
-[![GitHub Stars](https://img.shields.io/github/stars/redleaves/context-keeper?style=for-the-badge&logo=github&color=ff69b4)](https://github.com/redleaves/context-keeper)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
-[![MCP Protocol](https://img.shields.io/badge/MCP-Compatible-green?style=for-the-badge)](https://github.com/modelcontextprotocol)
+<p align="center">
+  <a href="https://github.com/redleaves/context-keeper"><img src="https://img.shields.io/github/stars/redleaves/context-keeper?style=for-the-badge&logo=github&color=ff69b4" alt="GitHub Stars"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"/></a>
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go" alt="Go Version"/></a>
+  <a href="https://github.com/modelcontextprotocol"><img src="https://img.shields.io/badge/MCP-Compatible-green?style=for-the-badge" alt="MCP Protocol"/></a>
+</p>
 
-[🚀 立即体验](#5-分钟快速开始) • [💡 核心优势](#2-核心特性) • [🏗️ 架构设计](#3-架构设计) • [📖 部署指南](#4-部署与集成) • [🗺️ 发展规划](#5-产品发展路线图)
+<h3 align="center">
+  English | <a href="README-zh-CN.md">简体中文</a>
+</h3>
 
 </div>
 
 ---
 
-## 📋 **目录导航**
+## 📋 **Table of Contents**
 
-- [🎯 为什么选择Context-Keeper？](#1-ai时代的开发困境当智能工具遇到记忆断层)
-- [🎯 核心特性](#2-核心特性)
-- [🏗️ 架构设计](#3-架构设计)
-- [📖 部署与集成](#4-部署与集成)
-- [🗺️ 产品发展路线图](#5-产品发展路线图)
-- [🤝 贡献指南](#6-贡献指南)
+- [🎯 Why Context-Keeper?](#1-ai-development-challenges-when-intelligent-tools-meet-memory-gaps)
+- [🎯 Core Features](#2-core-features)
+- [🏗️ Architecture Design](#3-architecture-design)
+- [📖 Deployment & Integration](#4-deployment--integration)
+- [🗺️ Product Roadmap](#5-product-roadmap)
+- [🤝 Contributing](#6-contributing-guide)
 
 ---
 
-## 1. AI时代的开发困境：当智能工具遇到记忆断层
+## 1. AI Development Challenges: When Intelligent Tools Meet Memory Gaps
 
-> **"还记得昨天讨论的微服务架构方案吗？"** → "抱歉，我不记得..." → 😤
+> **"Do you remember the microservices architecture we discussed yesterday?"** → "Sorry, I don't remember..." → 😤
 
-### 📊 **四维痛点：你是哪一种？**
+### 📊 **Four-Dimensional Pain Points: Which One Are You?**
 
 <div align="center">
 
-|  | 👤 **个人开发者** | 👥 **团队Leader** | 🏗️ **项目经理** | 🏢 **企业高管** |
+|  | 👤 **Individual Developer** | 👥 **Team Leader** | 🏗️ **Project Manager** | 🏢 **Enterprise Executive** |
 |------|-----------------|----------------|----------------|----------------|
-| **💔 核心痛点** | 🔄 **每天重复解释**项目背景给AI<br/>🧠 **上下文丢失**：AI无法理解开发意图<br/>🌀 **重复劳动**：相似问题反复解决 | 📚 **知识断层**：老员工经验无法传承<br/>💬 **沟通成本高**：反复解释相同问题<br/>🚫 **决策延迟**：缺乏历史上下文参考 | 🔧 **技术债务**：历史决策原因不明<br/>⏱️ **项目延期**：新人上手周期长<br/>📋 **文档滞后**：代码与文档不同步 | 💸 **人才流失**：核心知识随人员离职<br/>📈 **ROI下降**：跨项目最佳实践难复用<br/>🎯 **竞争劣势**：创新速度被拖慢 |
-| **⚡ 直接影响** | **🔥30%开发时间浪费** | **📉团队效率下降40%** | **💰项目成本超预算2x** | **⏰人才培养成本6-12个月** |
+| **💔 Core Pain Points** | 🔄 **Daily Repetition**: Explaining project context to AI<br/>🧠 **Context Loss**: AI can't understand development intent<br/>🌀 **Redundant Work**: Solving similar problems repeatedly | 📚 **Knowledge Gap**: Senior experience can't be inherited<br/>💬 **High Communication Cost**: Repeatedly explaining same issues<br/>🚫 **Decision Delays**: Lack of historical context reference | 🔧 **Technical Debt**: Unknown reasons for historical decisions<br/>⏱️ **Project Delays**: Long onboarding cycle for new members<br/>📋 **Documentation Lag**: Code and docs out of sync | 💸 **Talent Loss**: Core knowledge leaves with personnel<br/>📈 **ROI Decline**: Cross-project best practices hard to reuse<br/>🎯 **Competitive Disadvantage**: Innovation speed slowed down |
+| **⚡ Direct Impact** | **🔥30% Development Time Wasted** | **📉Team Efficiency Down 40%** | **💰Project Cost 2x Over Budget** | **⏰Talent Training Cost 6-12 Months** |
 
 </div>
 
-### 🔥 **行业现状数据**
-- 📊 **50%开发者**每天重复解释项目背景给AI助手
-- 💰 **平均成本**：替换一个资深工程师需要6-12个月
-- ⏱️ **时间损失**：新人完全熟悉复杂项目需要3-6个月
-- 🔄 **重复工作**：团队中30-40%的技术问题是重复性的
+### 🔥 **Industry Status Data**
 
-**核心问题**：AI工具缺乏持续记忆能力，无法形成智能的知识积累和传承体系。面对这些困境，我们需要的不是另一个记忆工具，而是一个真正理解开发者意图的智能大脑。🚀 **Context-Keeper：突破传统边界的智能解决方案**
+- 📊 **50% of developers** repeat project context explanations to AI assistants daily
+- 💰 **Average Cost**: Replacing a senior engineer takes 6-12 months
+- ⏱️ **Time Loss**: New members need 3-6 months to fully understand complex projects
+- 🔄 **Repetitive Work**: 30-40% of technical issues in teams are repetitive
 
+**Core Problem**: AI tools lack continuous memory capabilities and cannot form intelligent knowledge accumulation and inheritance systems. Facing these challenges, we need not another memory tool, but a truly intelligent brain that understands developer intent.
+
+🚀 **Context-Keeper: Breaking Traditional Boundaries with Intelligent Solutions**
 
 ---
 
-## 2. 核心特性
-
-
+## 2. Core Features
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'fontSize':'16px', 'fontFamily':'Arial, sans-serif'}}}%%
 graph LR
-    subgraph Stage1["🔍 多维宽召回<br/>(高覆盖率)"]
-        A1("语义检索<br/>TOP-50") 
-        A2("时间线检索<br/>TOP-30")
-        A3("知识图谱<br/>TOP-20")
-        A1 --> A4("候选集<br/>~100条")
+    subgraph Stage1["🔍 Multi-Dimensional Wide Recall<br/>(High Coverage)"]
+        A1("Semantic Retrieval<br/>TOP-50") 
+        A2("Timeline Retrieval<br/>TOP-30")
+        A3("Knowledge Graph<br/>TOP-20")
+        A1 --> A4("Candidate Set<br/>~100 items")
         A2 --> A4
         A3 --> A4
     end
     
-    subgraph Stage2["🧠 LLM精排序<br/>(高准确率)"]
-        A4 --> B1("LLM智能分析")
-        B1 --> B2("质量评估")
-        B2 --> B3("相关性排序")
-        B3 --> B4("TOP-N<br/>精准结果")
+    subgraph Stage2["🧠 LLM Precision Ranking<br/>(High Accuracy)"]
+        A4 --> B1("LLM Intelligent Analysis")
+        B1 --> B2("Quality Assessment")
+        B2 --> B3("Relevance Ranking")
+        B3 --> B4("TOP-N<br/>Precise Results")
     end
     
-    subgraph Stage3["🎯 多维融合<br/>(个性化输出)"]
-        B4 --> C1("语义维度")
-        B4 --> C2("时间维度") 
-        B4 --> C3("知识维度")
-        C1 --> C4("智能融合引擎")
+    subgraph Stage3["🎯 Multi-Dimensional Fusion<br/>(Personalized Output)"]
+        B4 --> C1("Semantic Dimension")
+        B4 --> C2("Temporal Dimension") 
+        B4 --> C3("Knowledge Dimension")
+        C1 --> C4("Intelligent Fusion Engine")
         C2 --> C4
         C3 --> C4
-        C4 --> C5("个性化方案")
+        C4 --> C5("Personalized Solution")
     end
     
     style Stage1 fill:#e3f2fd,stroke:#e2e8f0,stroke-width:1px,rx:8,ry:8
@@ -97,323 +100,331 @@ graph LR
     style Stage3 fill:#e8f5e9,stroke:#e2e8f0,stroke-width:1px,rx:8,ry:8
 ```
 
-### 🚀 **三大核心突破**
+### 🚀 **Three Core Breakthroughs**
 
-| 突破点 | 传统方案痛点 | **Context-Keeper解决方案** | 核心优势 |
+| Breakthrough | Traditional Solution Pain Points | **Context-Keeper Solution** | Core Advantage |
 |-------|------------|-------------------------|---------|
-| **🧠 智能推理** | 机械匹配，无法理解意图 | **LLM深度推理**：理解开发场景和项目上下文 | 准确率75%+ |
-| **⚡ 宽召回+精排序** | 召回率与准确率矛盾 | **两阶段架构**：宽召回(100条) → 精排序(TOP-N) | 覆盖率80%+ |
-| **🎯 多维融合** | 单一语义检索，信息孤立 | **三维记忆空间**：语义+时间+知识智能融合 | 关联发现率3倍提升 |
+| **🧠 Intelligent Reasoning** | Mechanical matching, unable to understand intent | **LLM Deep Reasoning**: Understands development scenarios and project context | 75%+ Accuracy |
+| **⚡ Wide Recall + Precision Ranking** | Contradiction between recall and accuracy | **Two-Stage Architecture**: Wide recall (100 items) → Precision ranking (TOP-N) | 80%+ Coverage |
+| **🎯 Multi-Dimensional Fusion** | Single semantic retrieval, isolated information | **Three-Dimensional Memory Space**: Semantic + Temporal + Knowledge intelligent fusion | 3x Association Discovery Rate |
 
+> Note: The above metrics are internal benchmark results under specific evaluation scenarios; actual results may vary by dataset, model and environment (scenario-scope).
 
+### 🎯 **Business Value**
 
-### 🎯 **业务价值**
+#### **Value for Development Teams**
 
-#### **对开发团队的价值**
-
-
-| 应用场景 | 开发者问题 | Context-Keeper智能响应 | 价值体现 |
+| Application Scenario | Developer Question | Context-Keeper Intelligent Response | Value Demonstration |
 |---------|-----------|----------------------|---------|
-| **架构决策回顾** | "为什么选择微服务而非单体？" | 基于3月15日技术评审记录的详细分析 | 🧠 **历史智慧复用** |
-| **Bug修复复用** | "类似性能问题怎么解决？" | 发现2个相关案例并提供解决方案 | ⚡ **经验快速复用** |
-| **技术选型参考** | "Redis集群配置最佳实践？" | 项目历史配置+业界最佳实践对比 | 🎯 **决策支持优化** |
+| **Architecture Decision Review** | "Why choose microservices over monolith?" | Detailed analysis based on March 15th technical review records | 🧠 **Historical Wisdom Reuse** |
+| **Bug Fix Reuse** | "How to solve similar performance issues?" | Found 2 related cases and provided solutions | ⚡ **Experience Rapid Reuse** |
+| **Technology Selection Reference** | "Redis cluster configuration best practices?" | Project historical config + industry best practices comparison | 🎯 **Decision Support Optimization** |
 
-#### **对企业的价值**
-- 📈 **开发效率提升**: 减少重复性解释和讨论
-- 💰 **人力成本节省**: 新员工培训时间大幅度缩短
-- 🎯 **决策质量提升**: 基于历史经验的智能建议
-- 🔄 **知识资产积累**: 团队智慧的系统性沉淀
-
----
-
-## 3. 架构设计
-Context-Keeper目前经历了两个版本的迭代：
-#### **🧠 一期核心设计**
-
-**📚 长短期记忆分层设计**
-- **短期记忆**：存储完整的近期对话，使用本地文件系统，保证高速访问
-- **长期记忆**：存储关键信息摘要，使用向量数据库永久保存
-- **渐进式压缩**：信息从短期记忆的详细记录逐步转化为长期记忆的语义摘要
-
-**👤 用户隔离与个性化**
-- **会话隔离**：每个用户拥有独立的会话空间，确保数据安全和隐私保护
-- **工作空间隔离**：不同项目/工作空间的上下文完全隔离，避免信息串扰
-- **个性化记忆策略**：根据用户工作风格自动调整记忆阈值和摘要策略
-- **跨会话知识传递**：在同一用户的不同会话间建立智能关联
-
-**🔄 记忆与批次管理机制**
-- **记忆ID (memoryID)**：用户视角的"完整记忆"，对应一个工作任务或主题
-- **批次ID (batchID)**：系统视角的"存储单元"，对应连续对话片段
-- **智能重要性评估**：自动识别关键决策点，确保核心内容永久保存
-
-#### **🚀 二期LLM驱动升级**
-
-Context-Keeper基于**LLM驱动的智能上下文记忆管理系统**，在一期基础上实现了两个关键突破：
-
-🧠 **LLM驱动的宽召回+精排序架构** - 构建"意图理解 → 宽召回 → 精排序 → 智能合成"的LLM驱动架构
-
-⭐️ **智能上下文管理** - 四维统一上下文模型+LLM驱动的全生命周期智能管理
+#### **Value for Enterprises**
+- 📈 **Development Efficiency Improvement**: Reduce repetitive explanations and discussions
+- 💰 **Human Resource Cost Savings**: Significantly shorten new employee training time
+- 🎯 **Decision Quality Enhancement**: Intelligent suggestions based on historical experience
+- 🔄 **Knowledge Asset Accumulation**: Systematic precipitation of team wisdom
 
 ---
 
-### 🧠 **3.1 LLM驱动的宽召回+精排序架构**
+## 3. Architecture Design
 
-#### **🏗️ 架构图**
+Context-Keeper has evolved through two major iterations:
+
+#### **🧠 Phase I Core Design**
+
+**📚 Layered Short-term and Long-term Memory Design**
+- **Short-term Memory**: Stores complete recent conversations using local file system for high-speed access
+- **Long-term Memory**: Stores key information summaries using vector database for permanent storage
+- **Progressive Compression**: Information gradually transforms from detailed short-term records to semantic summaries in long-term memory
+
+**👤 User Isolation & Personalization**
+- **Session Isolation**: Each user has independent session space, ensuring data security and privacy protection
+- **Workspace Isolation**: Complete isolation of contexts from different projects/workspaces, avoiding information interference
+- **Personalized Memory Strategy**: Automatically adjusts memory thresholds and summary strategies based on user work style
+- **Cross-session Knowledge Transfer**: Establishes intelligent associations between different sessions of the same user
+
+**🔄 Memory & Batch Management Mechanism**
+- **Memory ID (memoryID)**: User perspective "complete memory", corresponding to a work task or topic
+- **Batch ID (batchID)**: System perspective "storage unit", corresponding to continuous conversation segments
+- **Intelligent Importance Assessment**: Automatically identifies key decision points, ensuring core content is permanently saved
+
+#### **🚀 Phase II LLM-Driven Upgrade**
+
+Context-Keeper is based on **LLM-driven intelligent context memory management system**, achieving two key breakthroughs on Phase I foundation:
+
+🧠 **LLM-Driven Wide Recall + Precision Ranking Architecture** - Building "Intent Understanding → Wide Recall → Precision Ranking → Intelligent Synthesis" LLM-driven architecture
+
+⭐️ **Intelligent Context Management** - Four-dimensional unified context model + LLM-driven full lifecycle intelligent management
+
+---
+
+### 🧠 **3.1 LLM-Driven Wide Recall + Precision Ranking Architecture**
+
+#### **🏗️ Architecture Diagram**
 
 <div align="center">
-<img src="docs/img/context整体架构.png" alt="LLM驱动的宽召回+精排序架构图" style="width: 70%; max-width: 1200px; height: auto;">
+<img src="docs/img/context整体架构en.png" alt="LLM-driven architecture overview" style="width: 70%; max-width: 1200px; height: auto;">
 </div>
 
-
-#### **⏱️ 时序图**
+#### **⏱️ Sequence Diagram**
 
 ```mermaid
 sequenceDiagram
-    participant User as 👤 用户
-    participant LLM1 as 🧠 LLM阶段一
-    participant MDRE as 🔍 多维检索引擎
-    participant LLM2 as 🧠 LLM阶段二
-    participant Context as 🌟 上下文管理
+    participant User as 👤 User
+    participant LLM1 as 🧠 LLM Stage 1
+    participant MDRE as 🔍 Multi-Dimensional Retrieval Engine
+    participant LLM2 as 🧠 LLM Stage 2
+    participant Context as 🌟 Context Management
     
-    User->>LLM1: "回忆项目架构设计"
-    LLM1->>LLM1: 🎯 意图分析<br/>核心意图+领域上下文+应用场景
-    LLM1->>MDRE: 检索策略+查询改写
+    User->>LLM1: "Recall project architecture design"
+    LLM1->>LLM1: 🎯 Intent Analysis<br/>Core Intent + Domain Context + Application Scenario
+    LLM1->>MDRE: Retrieval Strategy + Query Rewriting
     
-    par 宽召回阶段
-        MDRE->>MDRE: 向量检索：架构语义
-        MDRE->>MDRE: 时间线检索：设计讨论
-        MDRE->>MDRE: 知识图谱：架构关联
+    par Wide Recall Stage
+        MDRE->>MDRE: Vector Retrieval: Architecture Semantics
+        MDRE->>MDRE: Timeline Retrieval: Design Discussions
+        MDRE->>MDRE: Knowledge Graph: Architecture Associations
     end
     
-    MDRE->>LLM2: 候选集 (~100条)
-    LLM2->>LLM2: 🧠 精排序<br/>质量评估+相关性排序
-    LLM2->>Context: 结构化合成
-    Context->>User: ✅ 个性化架构方案
+    MDRE->>LLM2: Candidate Set (~100 items)
+    LLM2->>LLM2: 🧠 Precision Ranking<br/>Quality Assessment + Relevance Ranking
+    LLM2->>Context: Structured Synthesis
+    Context->>User: ✅ Personalized Architecture Solution
 ```
 
-#### **📋 架构核心特性**
+#### **📋 Architecture Core Features**
 
-| 层级 | 核心能力 | 技术实现 | 性能优势 |
+| Layer | Core Capability | Technical Implementation | Performance Advantage |
 |------|---------|---------|---------|
-| **🧠 智能层** | 两阶段LLM协同推理 | 意图分析+智能合成分工 | **准确率75%** |
-| **🔍 检索层** | 多维宽召回+精排序 | 语义+时间+知识并行检索 | **召回率80%+** |
-| **⭐️ 管理层** | 智能上下文管理 | 四维协同+实时同步 | **响应<500ms** |
+| **🧠 Intelligence Layer** | Two-stage LLM collaborative reasoning | Intent analysis + intelligent synthesis division | **75% Accuracy** |
+| **🔍 Retrieval Layer** | Multi-dimensional wide recall + precision ranking | Semantic + temporal + knowledge parallel retrieval | **80%+ Recall Rate** |
+| **⭐️ Management Layer** | Intelligent context management | Four-dimensional coordination + real-time synchronization | **Response <500ms** |
 
-### 📋 **3.2 智能上下文管理**
+> Note: Metrics reflect internal benchmarks under controlled scenarios; production performance depends on model choice, hardware and configuration (scenario-scope).
 
-Context-Keeper构建了**四维统一上下文模型**作为上下文信息的载体，通过LLM驱动的智能管理机制，实现上下文从初始构建→填充完善→智能分析&更新上下文（循环往复）的全生命周期管理
+### 📋 **3.2 Intelligent Context Management**
 
-**核心设计**：
-- 🏗️ **统一上下文模型**：四维协同的数据存储基石
-- 🔄 **智能管理过程**：LLM驱动的全生命周期管理机制
-- ⚡️ **实时变更感知**：语义级别的上下文变化检测与更新
+Context-Keeper builds a **four-dimensional unified context model** as the carrier of context information, implementing full lifecycle management of context from initial construction → completion → intelligent analysis & context updates (cyclical) through LLM-driven intelligent management mechanisms.
 
-#### **🏗️ 智能上下文管理分层架构**
+**Core Design**:
+- 🏗️ **Unified Context Model**: Four-dimensional collaborative data storage foundation
+- 🔄 **Intelligent Management Process**: LLM-driven full lifecycle management mechanism
+- ⚡️ **Real-time Change Perception**: Semantic-level context change detection and updates
+
+#### **🏗️ Intelligent Context Management Layered Architecture**
 
 <div align="center">
-<img src="docs/img/上下文 1.png" alt="LLM驱动的宽召回+精排序架构图" style="width: 70%; max-width: 1200px; height: auto;">
+<img src="docs/img/上下文en.png" alt="Intelligent context management (EN)" style="width: 70%; max-width: 1200px; height: auto;">
 </div>
 
-#### **⏱️ 智能上下文管理时序**
+#### **⏱️ Intelligent Context Management Sequence**
 
 ```mermaid
 sequenceDiagram
-    participant User as 👤 用户
-    participant SessionMgmt as 🚀 会话管理工具
-    participant RetrieveCtx as 🔍 上下文检索工具
-    participant StoreConv as 💾 对话存储工具
-    participant AssocFile as 📝 文件关联工具
-    participant Context as ⭐️ 上下文管理
-    participant LLM1 as 🧠 LLM阶段一
-    participant MDRE as 🔍 多维检索
-    participant LLM2 as 🧠 LLM阶段二
-    participant Storage as 💾 存储层
+    participant User as 👤 User
+    participant SessionMgmt as 🚀 Session Management Tool
+    participant RetrieveCtx as 🔍 Context Retrieval Tool
+    participant StoreConv as 💾 Conversation Storage Tool
+    participant AssocFile as 📝 File Association Tool
+    participant Context as ⭐️ Context Management
+    participant LLM1 as 🧠 LLM Stage 1
+    participant MDRE as 🔍 Multi-Dimensional Retrieval
+    participant LLM2 as 🧠 LLM Stage 2
+    participant Storage as 💾 Storage Layer
     
-    Note over User,Storage: 🆕 初始构建（首次会话）
+    Note over User,Storage: 🆕 Initial Construction (First Session)
     
     User->>SessionMgmt: session_management(get_or_create)
-    SessionMgmt->>SessionMgmt: 工程感知分析<br/>技术栈·架构·依赖识别
-    SessionMgmt->>Context: 触发初始构建管理
-    Context->>Context: 创建ProjectContext<br/>构建统一上下文模型基础
-    Context->>Storage: 持久化ProjectContext
+    SessionMgmt->>SessionMgmt: Engineering Perception Analysis<br/>Tech Stack·Architecture·Dependency Recognition
+    SessionMgmt->>Context: Trigger Initial Construction Management
+    Context->>Context: Create ProjectContext<br/>Build Unified Context Model Foundation
+    Context->>Storage: Persist ProjectContext
     
-    Note over User,Storage: 🔍 填充完善（首次检索）
+    Note over User,Storage: 🔍 Completion Enhancement (First Retrieval)
     
     User->>RetrieveCtx: retrieve_context(query, sessionId)
-    RetrieveCtx->>Context: 获取当前上下文
-    Context-->>RetrieveCtx: 返回ProjectContext
-    RetrieveCtx->>LLM1: 用户查询+上下文
-    LLM1->>LLM1: 意图理解+查询改写
-    LLM1->>MDRE: 宽召回指令
+    RetrieveCtx->>Context: Get Current Context
+    Context-->>RetrieveCtx: Return ProjectContext
+    RetrieveCtx->>LLM1: User Query + Context
+    LLM1->>LLM1: Intent Understanding + Query Rewriting
+    LLM1->>MDRE: Wide Recall Instructions
     
-    par 宽召回并行检索
-        MDRE->>MDRE: 向量检索
-        MDRE->>MDRE: 时间线检索  
-        MDRE->>MDRE: 知识图谱检索
+    par Wide Recall Parallel Retrieval
+        MDRE->>MDRE: Vector Retrieval
+        MDRE->>MDRE: Timeline Retrieval  
+        MDRE->>MDRE: Knowledge Graph Retrieval
     end
     
-    MDRE->>LLM2: 候选集数据
-    LLM2->>Context: 获取当前上下文进行比对
-    Context-->>LLM2: ProjectContext（其他维度待填充）
-    LLM2->>LLM2: 🧠 语义比对+精排序合成
-    LLM2->>Context: 触发填充完善管理
-    Context->>Context: 完整构建TopicCtx+ConvCtx<br/>（CodeCtx由代码变更触发）
-    Context->>Storage: 持久化完整上下文模型
-    RetrieveCtx->>User: 返回智能合成结果
+    MDRE->>LLM2: Candidate Set Data
+    LLM2->>Context: Get Current Context for Comparison
+    Context-->>LLM2: ProjectContext (Other Dimensions to be Filled)
+    LLM2->>LLM2: 🧠 Semantic Comparison + Precision Ranking Synthesis
+    LLM2->>Context: Trigger Completion Enhancement Management
+    Context->>Context: Complete Construction TopicCtx+ConvCtx<br/>(CodeCtx Triggered by Code Changes)
+    Context->>Storage: Persist Complete Context Model
+    RetrieveCtx->>User: Return Intelligent Synthesis Results
     
-    Note over User,Storage: 🔄 变更管理（后续所有交互）
+    Note over User,Storage: 🔄 Change Management (All Subsequent Interactions)
     
-    loop 标准SOP循环：每次MCP工具调用
-        alt 检索触发
+    loop Standard SOP Cycle: Every MCP Tool Call
+        alt Retrieval Trigger
             User->>RetrieveCtx: retrieve_context(query, sessionId)
-            RetrieveCtx->>Context: 获取当前上下文
-            Context-->>RetrieveCtx: 完整四维上下文
-            RetrieveCtx->>LLM1: 查询+上下文
-            LLM1->>MDRE: 宽召回
-            MDRE->>LLM2: 候选集
-            LLM2->>Context: 语义比对+变更检测
-        else 存储触发
+            RetrieveCtx->>Context: Get Current Context
+            Context-->>RetrieveCtx: Complete Four-Dimensional Context
+            RetrieveCtx->>LLM1: Query + Context
+            LLM1->>MDRE: Wide Recall
+            MDRE->>LLM2: Candidate Set
+            LLM2->>Context: Semantic Comparison + Change Detection
+        else Storage Trigger
             User->>StoreConv: store_conversation(messages, sessionId)
-            StoreConv->>Context: 获取当前上下文
-            Context->>Context: 基于当前上下文进行变更检测
-        else 代码变更触发
+            StoreConv->>Context: Get Current Context
+            Context->>Context: Change Detection Based on Current Context
+        else Code Change Trigger
             User->>AssocFile: associate_file(filePath, sessionId)
-            AssocFile->>Context: 获取当前上下文
-            Context->>Context: 结合主题上下文更新CodeContext
+            AssocFile->>Context: Get Current Context
+            Context->>Context: Update CodeContext Combined with Topic Context
         end
         
-        Context->>Context: 🎯 变更检测管理<br/>当前上下文 vs 新数据
+        Context->>Context: 🎯 Change Detection Management<br/>Current Context vs New Data
         
-        alt 检测到语义变更
-            Context->>Context: ⚡️ 智能更新管理<br/>增量变更+冲突解决
-            Context->>Storage: 持久化变更
-        else 无变更
-            Context->>Context: 保持当前状态
+        alt Semantic Change Detected
+            Context->>Context: ⚡️ Intelligent Update Management<br/>Incremental Changes + Conflict Resolution
+            Context->>Storage: Persist Changes
+        else No Changes
+            Context->>Context: Maintain Current State
         end
         
-        alt 检索触发
-            RetrieveCtx->>User: 返回检索结果
-        else 存储触发
-            StoreConv->>User: 返回存储确认
-        else 代码变更触发
-            AssocFile->>User: 返回关联确认
+        alt Retrieval Trigger
+            RetrieveCtx->>User: Return Retrieval Results
+        else Storage Trigger
+            StoreConv->>User: Return Storage Confirmation
+        else Code Change Trigger
+            AssocFile->>User: Return Association Confirmation
         end
     end
 ```
 
-
-**🔥 管理机制核心优势**：
-- ✅ **统一存储基石**：四维统一上下文模型作为所有管理操作的数据基础
-- ✅ **全生命周期覆盖**：从初始构建→填充完善→循环变更的完整管理链路  
-- ✅ **LLM智能驱动**：每个管理环节都有LLM参与决策，非传统规则引擎
-- ✅ **实时变更感知**：基于语义分析的上下文变化检测
-- ✅ **无冲突合并**：LLM驱动的智能冲突解决和优先级仲裁
+**🔥 Management Mechanism Core Advantages**:
+- ✅ **Unified Storage Foundation**: Four-dimensional unified context model as data foundation for all management operations
+- ✅ **Full Lifecycle Coverage**: Complete management chain from initial construction → completion → cyclical changes
+- ✅ **LLM Intelligent Drive**: LLM participates in decision-making at every management stage, not traditional rule engines
+- ✅ **Real-time Change Perception**: Context change detection based on semantic analysis
+- ✅ **Conflict-free Merging**: LLM-driven intelligent conflict resolution and priority arbitration
 
 ---
 
-## 4. 部署与集成
+## 4. Deployment & Integration
 
-### 🛠️ **前置准备**
+### 🛠️ **Prerequisites**
 
-在部署Context-Keeper之前，需要准备以下基础设施：
+Before deploying Context-Keeper, you need to prepare the following infrastructure:
 
-#### **📊 多维存储基础设施**
+#### **📊 Multi-Dimensional Storage Infrastructure**
 
-**1. 向量数据库（必需）**
+**1. Vector Database (Required)**
 
-我们设计了统一的向量存储接口，**可按照开发者/企业需要自行扩展**，支持多种向量数据库：
+We designed a unified vector storage interface that **can be extended according to developer/enterprise needs**, supporting multiple vector databases:
 
-- **阿里云DashVector**：可在阿里云控制台快速申请
-- **京东云Vearch**：可在京东云快速申请
-- **自定义实现扩展**：基于统一接口可扩展实现其他向量存储（如Milvus、Weaviate等）
+- **Alibaba Cloud DashVector**: Quick application through Alibaba Cloud Console
+- **JD Cloud Vearch**: Quick application through JD Cloud
+- **Custom Implementation Extension**: Extend other vector storage implementations (like Milvus, Weaviate, etc.) based on unified interface
 
 ```bash
-# 配置示例（二选一）
-# 选项1：使用阿里云DashVector
+# Configuration Examples (Choose One)
+# Option 1: Use Alibaba Cloud DashVector
 VECTOR_STORE_TYPE=aliyun
 VECTOR_DB_URL=https://your-instance.dashvector.cn-hangzhou.aliyuncs.com
 VECTOR_DB_API_KEY=your-dashvector-api-key
 
-# 选项2：使用京东云Vearch  
+# Option 2: Use JD Cloud Vearch  
 VECTOR_STORE_TYPE=vearch
 VEARCH_URL=http://your-vearch-instance.jd.local
 VEARCH_USERNAME=your-username
 VEARCH_PASSWORD=your-password
 ```
 
-**2. 时序数据库（必须）**
+**2. Time-Series Database (Required)**
 
-自行安装：**TimescaleDB/PostgreSQL**（用于时间线存储）
+Self-install: **TimescaleDB/PostgreSQL** (for timeline storage)
 
-**3. 图数据库（必须）**
+**3. Graph Database (Required)**
 
-自行安装：**Neo4j**（用于知识图谱和关联分析）
+Self-install: **Neo4j** (for knowledge graph and association analysis)
 
-**4. LLM模型配置（必须）**
+**4. LLM Model Configuration (Required)**
 
-我们支持本地和云端大模型配置，**灵活满足不同场景需求**：
+We support both local and cloud model configurations, **flexibly meeting different scenario requirements**:
 
-**🏠 本地模型（推荐）**
-- 基于**Ollama**框架，响应快、成本低、数据安全
-- 安装Ollama：`curl -fsSL https://ollama.ai/install.sh | sh`
-- 按需安装模型：`ollama pull deepseek-coder-v2:16b`
-- 支持模型：CodeQwen、DeepSeek Coder、Llama等
+**🏠 Local Models (Recommended)**
+- Based on **Ollama** framework, fast response, low cost, data security
+- Install Ollama: `curl -fsSL https://ollama.ai/install.sh | sh`
+- Install models as needed: `ollama pull deepseek-coder-v2:16b`
+- Supported models: CodeQwen, DeepSeek Coder, Llama, etc.
 
-**☁️ 云端模型（备用）**
-- 申请对应LLM厂商的API密钥即可
-- 支持：OpenAI、DeepSeek、Claude、通义千问等
-- 配置简单，按需调用
+**☁️ Cloud Models (Backup)**
+- Apply for corresponding LLM vendor API keys
+- Support: OpenAI, DeepSeek, Claude, Tongyi Qianwen, etc.
+- Simple configuration, on-demand calling
 
-###  **5分钟快速开始**
+### 🚀 **5-Minute Quick Start**
 
-#### **环境要求**
+#### **Environment Requirements**
 - Go 1.21+
-- 4GB+ 内存
-- 支持Docker环境（可选）
+- 4GB+ Memory
+- Docker environment support (optional)
 
-#### **一键本地部署**
+#### **One-Click Local Deployment**
 
 ```bash
-# 1. 获取Context-Keeper
+# 1. Get Context-Keeper
 git clone https://github.com/redleaves/context-keeper.git
 cd context-keeper
 
-# 2. 环境配置（重要！）
+# 2. Environment Configuration (Important!)
 cp config/env.template config/.env
 
-# 编辑配置文件，填入必要参数
+# Edit configuration file, fill in necessary parameters
 vim config/.env
+
+# 3. One-click startup
+./scripts/manage.sh deploy http --port 8088
+
+# 4. Verify deployment
+curl http://localhost:8088/health
+# Expected output: {"status":"healthy","version":"v2.0.0"}
 ```
 
-### ⚙️ **详细参数配置**
+### ⚙️ **Detailed Parameter Configuration**
 
-#### **真实配置文件说明**
+#### **Real .env Configuration**
 
-基于项目实际的 `config/.env` 配置文件：
+Based on the project's actual `config/.env` (sample below):
 
 ```bash
 # =================================
-# 基础服务配置
+# Basic Service
 # =================================
-SERVICE_NAME=context-keeper         # 服务名称
-PORT=8088                          # HTTP服务端口
-DEBUG=false                        # 调试模式
-STORAGE_PATH=./data                # 数据存储路径
+SERVICE_NAME=context-keeper         # Service name
+PORT=8088                           # HTTP port
+DEBUG=false                         # Debug mode
+STORAGE_PATH=./data                 # Data storage path
 
 # =================================
-# 向量存储配置（必需）
+# Vector Store (Required)
 # =================================
-# 向量存储类型: aliyun | vearch
-VECTOR_STORE_TYPE=aliyun           # 支持阿里云DashVector和京东云Vearch
+# aliyun | vearch
+VECTOR_STORE_TYPE=aliyun            # Support DashVector (Aliyun) and Vearch (JD Cloud)
 
-# 阿里云DashVector配置
+# Aliyun DashVector
 VECTOR_DB_URL=https://your-instance.dashvector.cn-hangzhou.aliyuncs.com
 VECTOR_DB_API_KEY=your-dashvector-api-key
 VECTOR_DB_COLLECTION=context_keeper
 VECTOR_DB_DIMENSION=1536
 SIMILARITY_THRESHOLD=0.4
 
-# 京东云Vearch配置（可选替代）
+# JD Cloud Vearch (optional alternative)
 VEARCH_URL=http://your-vearch-instance.jd.local
 VEARCH_USERNAME=root
 VEARCH_PASSWORD=your-password
@@ -421,33 +432,31 @@ VEARCH_DATABASE=db
 VEARCH_REQUIRED_SPACES=context_keeper_vector,context_keeper_users
 
 # =================================
-# Embedding服务配置（必需）
+# Embedding Service (Required)
 # =================================
 EMBEDDING_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings
 EMBEDDING_API_KEY=your-dashscope-api-key
 
-# 批量Embedding配置
+# Batch embedding (optional)
 BATCH_EMBEDDING_API_URL=https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding
 BATCH_QUEUE_SIZE=100
 BATCH_WORKER_POLL_INTERVAL=5s
 
 # =================================
-# LLM配置（重点：支持本地和云端模型）
+# LLM (local first; cloud as fallback)
 # =================================
-# 🌟 支持本地和云端模型，本地模型响应快、灵活，适合语义分析和识别
-LLM_PROVIDER=ollama_local          # 默认使用本地模型
-LLM_MODEL=deepseek-coder-v2:16b    # 本地代码理解模型
-LLM_MAX_TOKENS=80000               # 最大Token数
-LLM_TEMPERATURE=0.1                # 温度参数（精确分析）
-LLM_TIMEOUT_SECONDS=600            # 超时时间
+LLM_PROVIDER=ollama_local           # Prefer local models
+LLM_MODEL=deepseek-coder-v2:16b     # Local code-understanding model
+LLM_MAX_TOKENS=80000
+LLM_TEMPERATURE=0.1
+LLM_TIMEOUT_SECONDS=600
 
-# 云端模型API Keys（备用）
-DEEPSEEK_API_KEY=your-deepseek-key  # DeepSeek云端API
-OPENAI_API_KEY=your-openai-key      # OpenAI API
-CLAUDE_API_KEY=your-claude-key      # Claude API
+# Cloud model API keys (fallback)
+DEEPSEEK_API_KEY=your-deepseek-key
+OPENAI_API_KEY=your-openai-key
+CLAUDE_API_KEY=your-claude-key
 
-
-# 时间线存储（TimescaleDB/PostgreSQL）
+# Timeline storage (TimescaleDB/PostgreSQL)
 TIMELINE_STORAGE_ENABLED=true
 TIMESCALEDB_HOST=localhost
 TIMESCALEDB_PORT=5432
@@ -455,7 +464,7 @@ TIMESCALEDB_DATABASE=context_keeper_timeline
 TIMESCALEDB_USERNAME=your-username
 TIMESCALEDB_PASSWORD=your-password
 
-# 知识图谱存储（Neo4j）
+# Knowledge graph storage (Neo4j)
 KNOWLEDGE_GRAPH_ENABLED=true
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
@@ -463,99 +472,86 @@ NEO4J_PASSWORD=your-neo4j-password
 NEO4J_DATABASE=neo4j
 
 # =================================
-# 会话管理配置
+# Session management
 # =================================
-SESSION_TIMEOUT=120m               # 会话超时时间（分钟）
-CLEANUP_INTERVAL=30m               # 清理任务间隔
-SHORT_MEMORY_MAX_AGE=3            # 短期记忆保留天数
+SESSION_TIMEOUT=120m                # Session timeout
+CLEANUP_INTERVAL=30m                # Cleanup interval
+SHORT_MEMORY_MAX_AGE=3              # Short-term memory retention days
 ```
 
-#### **LLM模型选择配置**
+#### **LLM Model Selection Configuration**
 
-基于项目实际的 `config/llm_config.yaml` 配置文件：
-
-**🌟 重点特性：支持本地和云端模型，本地模型响应快、灵活，特别适合语义分析和识别任务**
+From `config/llm_config.yaml` (local-first with cloud fallback):
 
 ```yaml
 llm:
   default:
-    primary_provider: "ollama_local"    # 🔥 优先使用本地模型
-    fallback_provider: "deepseek"      # 云端模型作为备用
-    
+    primary_provider: "ollama_local"    # Prefer local models
+    fallback_provider: "deepseek"       # Cloud model as fallback
+
   providers:
-    # 🏠 本地模型配置（推荐）
+    # Local models (recommended)
     ollama_local:
       base_url: "http://localhost:11434"
-      model: "deepseek-coder-v2:16b"   # 默认本地模型
-      timeout: "60s"                   # 本地响应更快
-      rate_limit: 0                    # 无限流限制
-      available_models:                # 支持多种本地模型
-        - "codeqwen:7b"               # 代码生成专用
-        - "deepseek-coder:33b"        # 高性能代码模型
-        - "deepseek-coder-v2:16b"     # 新一代代码模型
-    
-    # ☁️ 云端模型配置（备用）
+      model: "deepseek-coder-v2:16b"
+      timeout: "60s"
+      rate_limit: 0
+      available_models:
+        - "codeqwen:7b"
+        - "deepseek-coder:33b"
+        - "deepseek-coder-v2:16b"
+
+    # Cloud providers (fallback)
     deepseek:
       api_key: "${DEEPSEEK_API_KEY}"
       model: "deepseek-chat"
       timeout: "120s"
       rate_limit: 6000
-      
+
     openai:
       api_key: "${OPENAI_API_KEY}"
       model: "gpt-3.5-turbo"
-      
+
     claude:
       api_key: "${CLAUDE_API_KEY}"
       model: "claude-3-sonnet-20240229"
 ```
 
-#### **配置参数详解**
+#### **Parameter Reference**
 
-| 参数分类 | 参数名 | 必需 | 说明 | 默认值 |
-|---------|--------|------|------|--------|
-| **基础服务** | `SERVICE_NAME` | ✅ | 服务名称 | `context-keeper` |
-| | `PORT` | ✅ | HTTP服务监听端口 | `8088` |
-| | `STORAGE_PATH` | ✅ | 数据存储目录 | `./data` |
-| **向量存储** | `VECTOR_STORE_TYPE` | ✅ | 向量数据库类型：aliyun/vearch | `aliyun` |
-| | `VECTOR_DB_URL` | ✅ | 阿里云DashVector地址 | - |
-| | `VECTOR_DB_API_KEY` | ✅ | DashVector API密钥 | - |
-| | `VEARCH_URL` | ❌ | 京东云Vearch地址 | - |
-| | `VEARCH_USERNAME` | ❌ | Vearch用户名 | `root` |
-| **Embedding** | `EMBEDDING_API_URL` | ✅ | 阿里云嵌入服务地址 | DashScope API |
-| | `EMBEDDING_API_KEY` | ✅ | DashScope API密钥 | - |
-| **LLM模型** | `LLM_PROVIDER` | ✅ | LLM提供商：ollama_local/deepseek/openai | `ollama_local` |
-| | `LLM_MODEL` | ✅ | 使用的模型名称 | `deepseek-coder-v2:16b` |
-| | `LLM_MAX_TOKENS` | ❌ | 最大Token数 | `80000` |
-| **时序存储** | `TIMELINE_STORAGE_ENABLED` | ✅ | 是否启用TimescaleDB | `true` |
-| | `TIMESCALEDB_HOST` | ✅ | PostgreSQL主机地址 | `localhost` |
-| | `TIMESCALEDB_DATABASE` | ✅ | 数据库名称 | `context_keeper_timeline` |
-| **图数据库** | `KNOWLEDGE_GRAPH_ENABLED` | ✅ | 是否启用Neo4j | `true` |
-| | `NEO4J_URI` | ✅ | Neo4j连接地址 | `bolt://localhost:7687` |
-| | `NEO4J_USERNAME` | ✅ | Neo4j用户名 | `neo4j` |
-| **会话管理** | `SESSION_TIMEOUT` | ❌ | 会话超时时间 | `120m` |
-| | `SHORT_MEMORY_MAX_AGE` | ❌ | 短期记忆保留天数 | `7` |
+| Category | Key | Required | Description | Default |
+|---------|-----|----------|-------------|---------|
+| Basic | `SERVICE_NAME` | ✅ | Service name | `context-keeper` |
+|  | `PORT` | ✅ | HTTP listen port | `8088` |
+|  | `STORAGE_PATH` | ✅ | Data storage directory | `./data` |
+| Vector Store | `VECTOR_STORE_TYPE` | ✅ | `aliyun` or `vearch` | `aliyun` |
+|  | `VECTOR_DB_URL` | ✅ | DashVector endpoint | - |
+|  | `VECTOR_DB_API_KEY` | ✅ | DashVector API key | - |
+|  | `VEARCH_URL` | ❌ | Vearch endpoint | - |
+|  | `VEARCH_USERNAME` | ❌ | Vearch username | `root` |
+| Embedding | `EMBEDDING_API_URL` | ✅ | DashScope embedding endpoint | - |
+|  | `EMBEDDING_API_KEY` | ✅ | DashScope API key | - |
+| LLM | `LLM_PROVIDER` | ✅ | `ollama_local`/`deepseek`/`openai` | `ollama_local` |
+|  | `LLM_MODEL` | ✅ | Model name | `deepseek-coder-v2:16b` |
+|  | `LLM_MAX_TOKENS` | ❌ | Max tokens | `80000` |
+| Timeline | `TIMELINE_STORAGE_ENABLED` | ✅ | Enable TimescaleDB | `true` |
+|  | `TIMESCALEDB_HOST` | ✅ | PostgreSQL host | `localhost` |
+|  | `TIMESCALEDB_DATABASE` | ✅ | DB name | `context_keeper_timeline` |
+| Graph | `KNOWLEDGE_GRAPH_ENABLED` | ✅ | Enable Neo4j | `true` |
+|  | `NEO4J_URI` | ✅ | Bolt URI | `bolt://localhost:7687` |
+|  | `NEO4J_USERNAME` | ✅ | Neo4j user | `neo4j` |
+| Session | `SESSION_TIMEOUT` | ❌ | Session timeout | `120m` |
+|  | `SHORT_MEMORY_MAX_AGE` | ❌ | Short-term memory retention days | `7` |
 
-#### **启动服务**
-
-```bash
-# 3. 一键启动
-./scripts/manage.sh deploy http --port 8088
-
-# 4. 验证部署
-curl http://localhost:8088/health
-# 预期输出: {"status":"healthy","version":"v2.0.0"}
-```
-
-#### **验证功能完整性**
+#### **Verify Complete Functionality**
 
 ```bash
-# 测试MCP协议连接
+# Test MCP protocol connection
 curl -X POST http://localhost:8088/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 
-# 测试智能记忆功能  
+# Test intelligent memory functionality  
 curl -X POST http://localhost:8088/mcp \
   -H "Content-Type: application/json" \
   -d '{
@@ -564,12 +560,12 @@ curl -X POST http://localhost:8088/mcp \
       "name":"memorize_context",
       "arguments":{
         "sessionId":"test_session",
-        "content":"这是一个架构设计讨论，采用微服务模式"
+        "content":"This is an architecture design discussion using microservices pattern"
       }
     }
   }'
 
-# 测试智能检索功能
+# Test intelligent retrieval functionality
 curl -X POST http://localhost:8088/mcp \
   -H "Content-Type: application/json" \
   -d '{
@@ -578,17 +574,17 @@ curl -X POST http://localhost:8088/mcp \
       "name":"retrieve_context", 
       "arguments":{
         "sessionId":"test_session",
-        "query":"架构设计"
+        "query":"architecture design"
       }
     }
   }'
 ```
 
-### 💻 **IDE深度集成**
+### 💻 **Deep IDE Integration**
 
-#### **Cursor/Qoder集成**
+#### **Cursor/Qoder Integration**
 
-**步骤1：配置MCP连接**
+**Step 1: Configure MCP Connection**
 ```json
 {
   "mcpServers": {
@@ -599,41 +595,41 @@ curl -X POST http://localhost:8088/mcp \
 }
 ```
 
-**步骤2：安装智能记忆规则**
+**Step 2: Install Intelligent Memory Rules**
 ```bash
-# 复制预置的记忆管理规则（或者根据IDE实际情况拷贝复制）
+# Copy preset memory management rules
 cp .cursor/rules/memory-rules.md ~/.cursor/rules/context-keeper.md
 
-# 规则内容预览
+# Preview rule content
 cat ~/.cursor/rules/context-keeper.md
-# 包含：自动代码关联、实时记忆同步、智能检索提示等
+# Includes: automatic code association, real-time memory sync, intelligent retrieval prompts, etc.
 ```
 
-**步骤3：验证集成效果**
+**Step 3: Verify Integration Effect**
 ```typescript
-// 在Cursor中测试
-你: "帮我回忆一下这个项目的Redis缓存策略"
-AI: [自动触发Context-Keeper检索]
-   "根据8月15日的架构讨论，你们选择了Redis集群模式，
-    主要考虑了以下因素：[显示历史讨论详情]"
+// Test in Cursor
+You: "Help me recall this project's Redis caching strategy"
+AI: [Automatically triggers Context-Keeper retrieval]
+   "Based on the August 15th architecture discussion, you chose Redis cluster mode,
+    mainly considering the following factors: [Shows historical discussion details]"
 ```
 
-#### **VSCode集成**
+#### **VSCode Integration**
 
 ```bash
-# 安装扩展
+# Install extension
 code --install-extension context-keeper.cursor-integration
 ```
 
-### ☁️ **生产环境部署**
+### ☁️ **Production Environment Deployment**
 
-#### **Docker部署（推荐）**
+#### **Docker Deployment (Recommended)**
 
 ```bash
-# 1. 构建镜像
+# 1. Build image
 docker build -t context-keeper:latest .
 
-# 2. 使用Docker Compose部署
+# 2. Deploy using Docker Compose
 cat > docker-compose.yml << 'EOF'
 version: '3.8'
 services:
@@ -658,92 +654,56 @@ services:
       retries: 3
 EOF
 
-# 3. 启动服务
+# 3. Start services
 docker-compose up -d
 
-# 4. 查看服务状态
+# 4. Check service status
 docker-compose ps
 docker-compose logs -f context-keeper
-```
-
-### 🐳 **Docker部署**
-
-#### **使用项目Dockerfile**
-
-```bash
-# 1. 构建镜像（使用项目提供的Dockerfile）
-docker build -t context-keeper:latest .
-
-# 2. 运行容器
-docker run -d \
-  --name context-keeper \
-  -p 8088:8088 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config \
-  --env-file config/.env \
-  context-keeper:latest
-
-# 3. 查看运行状态
-docker ps
-docker logs context-keeper
-```
-
-#### **Docker Compose部署（推荐）**
-
-```bash
-# 使用项目提供的docker-compose.yml
-docker-compose up -d
-
-# 查看服务状态
-docker-compose ps
-docker-compose logs -f context-keeper
-
-# 停止服务
-docker-compose down
 ```
 
 ---
 
-## 5. 产品发展路线图
+## 5. Product Roadmap
 
-### 🎯 **技术演进战略**
+### 🎯 **Technology Evolution Strategy**
 
-Context-Keeper采用**阶梯式演进策略**，从基础记忆能力逐步升级为企业级AI大脑：
+Context-Keeper adopts a **step-by-step evolution strategy**, gradually upgrading from basic memory capabilities to enterprise-level AI brain:
 
 ```mermaid
 gantt
-    title Context-Keeper 产品发展路线图
+    title Context-Keeper Product Development Roadmap
     dateFormat  YYYY-MM-DD
-    section 🏗️ 基础架构
-    双层记忆系统          :done, basic1, 2025-04-01, 2025-06-30
-    MCP协议集成          :done, basic2, 2025-04-01, 2025-06-30
-    多向量引擎支持        :done, basic3, 2025-04-01, 2025-06-30
+    section 🏗️ Foundation
+    Dual-layer Memory System    :done, basic1, 2025-04-01, 2025-06-30
+    MCP Protocol Integration    :done, basic2, 2025-04-01, 2025-06-30
+    Multi-Vector Engine Support :done, basic3, 2025-04-01, 2025-06-30
     
-    section 🧠 智能大脑  
-    用户/工作空间隔离      :done, brain0, 2025-07-01, 2025-09-30
-    LLM两阶段分析        :done, brain1, 2025-07-01, 2025-09-30
-    三要素智能识别        :done, brain2, 2025-07-01, 2025-09-30
-    多维检索融合         :done, brain3, 2025-07-01, 2025-09-30
+    section 🧠 Intelligence  
+    User/Workspace Isolation    :done, brain0, 2025-07-01, 2025-09-30
+    LLM Two-Stage Analysis      :done, brain1, 2025-07-01, 2025-09-30
+    Three-Element Recognition   :done, brain2, 2025-07-01, 2025-09-30
+    Multi-Dimensional Fusion   :done, brain3, 2025-07-01, 2025-09-30
     
-    section 🕸️ 知识图谱
-    企业知识图谱         :active, kg1, 2025-10-01, 2025-12-31
-    关系推理引擎         :kg2, 2025-10-01, 2025-12-31
-    跨项目知识复用        :kg3, 2025-10-01, 2025-12-31
+    section 🕸️ Knowledge Graph
+    Enterprise Knowledge Graph  :active, kg1, 2025-10-01, 2025-12-31
+    Reasoning Engine           :kg2, 2025-10-01, 2025-12-31
+    Cross-Project Knowledge    :kg3, 2025-10-01, 2025-12-31
     
-    section 🏢 企业级
-    多租户SaaS架构       :enterprise1, 2026-01-01, 2026-03-31
-    安全合规体系         :enterprise2, 2026-01-01, 2026-03-31
-    全球化部署           :enterprise3, 2026-01-01, 2026-03-31
+    section 🏢 Enterprise
+    Multi-Tenant SaaS          :enterprise1, 2026-01-01, 2026-03-31
+    Security Compliance        :enterprise2, 2026-01-01, 2026-03-31
+    Global Deployment          :enterprise3, 2026-01-01, 2026-03-31
 ```
 
-### 🔥 **第三阶段：知识图谱构建**（当前进行中）
+### 🔥 **Phase III: Knowledge Graph Construction** (Currently in Progress)
 
-**📅 时间窗口**: 2025年Q4  
-**🎯 核心目标**: 构建企业级知识图谱和关系推理能力
+**📅 Time Window**: Q4 2025  
+**🎯 Core Objective**: Build enterprise-level knowledge graph and reasoning capabilities
 
-#### **核心特性开发**
+#### **Core Feature Development**
 
-1. **🕸️ 企业知识图谱构建**
+1. **🕸️ Enterprise Knowledge Graph Construction**
    ```typescript
    interface KnowledgeGraph {
      entities: ProjectEntity[];
@@ -759,10 +719,10 @@ gantt
      connections: EntityConnection[];
    }
    ```
-   - **技术突破**: 自动从代码和对话中提取实体关系
-   - **预期效果**: 构建项目的完整知识网络
+   - **Technical Breakthrough**: Automatically extract entity relationships from code and conversations
+   - **Expected Effect**: Build complete knowledge network of projects
 
-2. **🧠 关系推理引擎**
+2. **🧠 Reasoning Engine**
    ```typescript
    interface ReasoningEngine {
      findRelatedConcepts(entity: string): ConceptPath[];
@@ -770,10 +730,10 @@ gantt
      explainDecisionPath(decision: Decision): ReasoningChain;
    }
    ```
-   - **技术突破**: 多跳路径查询与智能推理
-   - **预期效果**: 发现隐藏的知识关联
+   - **Technical Breakthrough**: Multi-hop path queries and intelligent reasoning
+   - **Expected Effect**: Discover hidden knowledge associations
 
-3. **🔄 跨项目知识复用**
+3. **🔄 Cross-Project Knowledge Reuse**
    ```typescript
    interface CrossProjectKnowledge {
      patternMatching: PatternMatcher;
@@ -781,53 +741,52 @@ gantt
      knowledgeTransfer: TransferLearning;
    }
    ```
-   - **技术突破**: 跨项目的最佳实践自动识别和迁移
-   - **预期效果**: 加速新项目的知识积累
+   - **Technical Breakthrough**: Automatic identification and migration of cross-project best practices
+   - **Expected Effect**: Accelerate knowledge accumulation in new projects
 
-**📊 预期量化目标**:
-- 🎯 知识图谱覆盖率: 90%+
-- ⚡ 关系推理准确率: 85%+  
-- 🔧 跨项目知识复用率: 70%+
+**📊 Expected Quantitative Goals**:
+- 🎯 Knowledge Graph Coverage: 90%+
+- ⚡ Reasoning Accuracy: 85%+  
+- 🔧 Cross-Project Knowledge Reuse Rate: 70%+
 
-### 🏢 **第四阶段：企业级部署**（2026年Q1）
+### 🏢 **Phase IV: Enterprise Deployment** (Q1 2026)
 
-**🎯 核心目标**: 构建企业级SaaS服务和全球化部署能力
+**🎯 Core Objective**: Build enterprise-level SaaS services and global deployment capabilities
 
-#### **企业级特性**
+#### **Enterprise Features**
 
-1. **🏗️ 多租户SaaS架构**
-   - 租户数据完全隔离
-   - 弹性资源分配
-   - 企业级性能保障
+1. **🏗️ Multi-Tenant SaaS Architecture**
+   - Complete tenant data isolation
+   - Elastic resource allocation
+   - Enterprise-level performance guarantee
 
-2. **🔒 安全合规体系**
-   - 数据加密和权限管理
-   - 审计日志和合规报告
-   - 企业级安全认证
+2. **🔒 Security Compliance System**
+   - Data encryption and permission management
+   - Audit logs and compliance reports
+   - Enterprise-level security certification
 
-3. **🌍 全球化部署**
-   - 多区域部署支持
-   - 国际化和本地化
-   - 全球数据同步
-
+3. **🌍 Global Deployment**
+   - Multi-region deployment support
+   - Internationalization and localization
+   - Global data synchronization
 
 ---
 
-## 6. 贡献指南
+## 6. Contributing Guide
 
-### 🌟 **开源社区愿景**
+### 🌟 **Open Source Community Vision**
 
-Context-Keeper致力于构建一个**开放、创新、共赢**的AI编程工具社区，让每一位开发者都能享受到智能记忆带来的效率提升。
+Context-Keeper is committed to building an **open, innovative, win-win** AI programming tool community, allowing every developer to enjoy the efficiency improvements brought by intelligent memory.
 
-#### **📈 社区发展目标**
+#### **📈 Community Development Goals**
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'fontSize':'16px', 'fontFamily':'Arial, sans-serif'}}}%%
 graph LR
-    A[开源项目] -->|开发者贡献| B[技术创新]
-    B -->|产品优化| C[用户体验提升]
-    C -->|社区壮大| D[生态繁荣]
-    D -->|反哺开源| A
+    A[Open Source Project] -->|Developer Contributions| B[Technical Innovation]
+    B -->|Product Optimization| C[User Experience Enhancement]
+    C -->|Community Growth| D[Ecosystem Prosperity]
+    D -->|Feedback to Open Source| A
     
     style A fill:#e8f5e9,stroke:#e2e8f0,stroke-width:0.5px,rx:8,ry:8
     style B fill:#e3f2fd,stroke:#e2e8f0,stroke-width:0.5px,rx:8,ry:8
@@ -835,47 +794,47 @@ graph LR
     style D fill:#f3e5f5,stroke:#e2e8f0,stroke-width:0.5px,rx:8,ry:8
 ```
 
-### 🚀 **快速参与贡献**
+### 🚀 **Quick Participation in Contributions**
 
-#### **🔧 开发环境搭建**
+#### **🔧 Development Environment Setup**
 
 ```bash
-# 1. Fork并克隆项目
+# 1. Fork and clone the project
 git clone https://github.com/YOUR_USERNAME/context-keeper.git
 cd context-keeper
 
-# 2. 环境准备
-go version  # 确保Go 1.21+
-node --version  # 确保Node.js 16+
+# 2. Environment preparation
+go version  # Ensure Go 1.21+
+node --version  # Ensure Node.js 16+
 
-# 3. 依赖安装
+# 3. Dependency installation
 go mod download
 npm install
 
-# 4. 本地开发启动
+# 4. Local development startup
 cp config/.env.example config/.env
 go run main.go --dev
 
-# 5. 运行测试套件
+# 5. Run test suite
 go test ./...
 npm test
 
-# 6. 代码质量检查
+# 6. Code quality check
 golangci-lint run
 npm run lint
 ```
 
-#### **📝 贡献流程**
+#### **📝 Contribution Process**
 
 ```bash
-# 1. 创建功能分支
+# 1. Create feature branch
 git checkout -b feature/amazing-new-feature
 
-# 2. 开发与测试
-# ... 进行开发工作 ...
+# 2. Development and testing
+# ... perform development work ...
 go test ./...
 
-# 3. 提交代码（遵循Conventional Commits）
+# 3. Commit code (follow Conventional Commits)
 git add .
 git commit -m "feat: add intelligent query rewriting engine
 
@@ -886,95 +845,94 @@ git commit -m "feat: add intelligent query rewriting engine
 
 Closes #123"
 
-# 4. 推送并创建PR
+# 4. Push and create PR
 git push origin feature/amazing-new-feature
-# 在GitHub上创建Pull Request
+# Create Pull Request on GitHub
 ```
 
-### 📋 **贡献方式与认可体系**
+### 📋 **Contribution Methods & Recognition System**
 
-#### **🎯 多样化贡献途径**
+#### **🎯 Diverse Contribution Paths**
 
-| 贡献类型 | 技能要求 | 认可方式 | 影响力 |
+| Contribution Type | Skill Requirements | Recognition Method | Impact |
 |---------|----------|----------|--------|
-| **🐛 Bug修复** | Go/TypeScript基础 | Contributor徽章 | 直接提升产品稳定性 |
-| **✨ 功能开发** | 中高级编程技能 | Core Contributor | 推动产品能力演进 |
-| **📚 文档完善** | 技术写作能力 | Documentation Expert | 降低新用户使用门槛 |
-| **🧪 测试用例** | 测试思维与技能 | Quality Assurance | 保障产品质量 |
-| **🌍 国际化** | 多语言能力 | Localization Champion | 扩大全球用户覆盖 |
-| **🎨 UI/UX设计** | 设计与前端技能 | Design Contributor | 提升用户体验 |
-
+| **🐛 Bug Fixes** | Go/TypeScript Basics | Contributor Badge | Directly improve product stability |
+| **✨ Feature Development** | Intermediate-Advanced Programming | Core Contributor | Drive product capability evolution |
+| **📚 Documentation** | Technical Writing | Documentation Expert | Lower barrier for new users |
+| **🧪 Test Cases** | Testing Mindset & Skills | Quality Assurance | Ensure product quality |
+| **🌍 Internationalization** | Multi-language Ability | Localization Champion | Expand global user coverage |
+| **🎨 UI/UX Design** | Design & Frontend Skills | Design Contributor | Enhance user experience |
 
 ---
 
-## 🎊 **立即开始您的智能记忆之旅**
+## 🎊 **Start Your Intelligent Memory Journey Now**
 
 <div align="center">
 
-**🧠 Context-Keeper - 重新定义AI助手的记忆边界**
+**🧠 Context-Keeper - Redefining AI Assistant Memory Boundaries**
 
-*让每一次对话都有意义，让每一个决策都有传承*
+*Making Every Conversation Meaningful, Every Decision Inheritable*
 
-### 🚀 **三步开启智能记忆时代**
+### 🚀 **Three Steps to Enter the Intelligent Memory Era**
 
 ```bash
-# 1️⃣ 获取Context-Keeper
+# 1️⃣ Get Context-Keeper
 git clone https://github.com/redleaves/context-keeper.git
 
-# 2️⃣ 一键启动服务  
+# 2️⃣ One-click service startup  
 ./scripts/manage.sh deploy http --port 8088
 
-# 3️⃣ 集成到您的IDE
-# Cursor用户：配置MCP连接
-# VSCode用户：安装官方扩展
+# 3️⃣ Integrate with your IDE
+# Cursor users: Configure MCP connection
+# VSCode users: Install official extension
 ```
 
-### 🎯 **选择最适合您的方案**
+### 🎯 **Choose the Best Solution for You**
 
-[![🏠 个人开发者](https://img.shields.io/badge/个人开发者-免费使用-4CAF50?style=for-the-badge&logo=home&logoColor=white)](https://github.com/redleaves/context-keeper/releases)
-[![🏢 企业团队](https://img.shields.io/badge/企业团队-专业服务-2196F3?style=for-the-badge&logo=business&logoColor=white)](mailto:enterprise@context-keeper.com)
-[![🤝 开源贡献](https://img.shields.io/badge/开源贡献-共建生态-FF9800?style=for-the-badge&logo=github&logoColor=white)](https://github.com/redleaves/context-keeper/blob/main/CONTRIBUTING.md)
+[![🏠 Individual Developers](https://img.shields.io/badge/Individual%20Developers-Free%20Use-4CAF50?style=for-the-badge&logo=home&logoColor=white)](https://github.com/redleaves/context-keeper/releases)
+[![🏢 Enterprise Teams](https://img.shields.io/badge/Enterprise%20Teams-Professional%20Service-2196F3?style=for-the-badge&logo=business&logoColor=white)](mailto:enterprise@context-keeper.com)
+[![🤝 Open Source](https://img.shields.io/badge/Open%20Source-Build%20Together-FF9800?style=for-the-badge&logo=github&logoColor=white)](https://github.com/redleaves/context-keeper/blob/main/CONTRIBUTING.md)
 
 ---
 
-### 🔗 **快速链接**
+### 🔗 **Quick Links**
 
-| 🎯 场景 | 🔗 链接 | 📝 描述 |
+| 🎯 Scenario | 🔗 Link | 📝 Description |
 |---------|--------|---------|
-| **⚡ 快速体验** | [5分钟快速开始](#5分钟快速开始) | 最快速度上手体验 |
-| **🏗️ 技术深入** | [系统架构设计](#3-架构设计) | 了解技术原理与创新 |
-| **📖 部署指南** | [部署与集成](#4-部署与集成) | 生产环境部署方案 |
-| **🗺️ 产品规划** | [发展路线图](#5-产品发展路线图) | 未来发展方向 |
-| **🤝 参与贡献** | [贡献指南](#6-贡献指南) | 加入开源社区 |
+| **⚡ Quick Experience** | [5-Minute Quick Start](#5-minute-quick-start) | Fastest way to get started |
+| **🏗️ Technical Deep Dive** | [Architecture Design](#3-architecture-design) | Understand technical principles and innovations |
+| **📖 Deployment Guide** | [Deployment & Integration](#4-deployment--integration) | Production environment deployment solutions |
+| **🗺️ Product Planning** | [Product Roadmap](#5-product-roadmap) | Future development directions |
+| **🤝 Participate** | [Contributing Guide](#6-contributing-guide) | Join the open source community |
 
 ---
 
-**⭐ 如果Context-Keeper对您有帮助，请给我们一个Star！**
+**⭐ If Context-Keeper helps you, please give us a Star!**
 
-**📢 分享给更多需要智能记忆的开发者：**
+**📢 Share with more developers who need intelligent memory:**
 
-[![Twitter分享](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/intent/tweet?text=Context-Keeper%3A%20%E5%85%A8%E7%90%83%E9%A6%96%E4%B8%AALLM%E9%A9%B1%E5%8A%A8%E7%9A%84%E6%99%BA%E8%83%BD%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F%EF%BC%81&url=https://github.com/context-keeper/context-keeper)
-[![LinkedIn分享](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/sharing/share-offsite/?url=https://github.com/context-keeper/context-keeper)
+[![Twitter Share](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/intent/tweet?text=Context-Keeper%3A%20World's%20first%20LLM-driven%20intelligent%20memory%20system%21&url=https://github.com/redleaves/context-keeper)
+[![LinkedIn Share](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/sharing/share-offsite/?url=https://github.com/redleaves/context-keeper)
 
 </div>
 
 ---
 
-## 📄 **许可证与致谢**
+## 📄 **License & Acknowledgments**
 
-### 📜 **开源许可**
-本项目基于 [MIT License](LICENSE) 开源许可证，欢迎自由使用、修改和分发。
+### 📜 **Open Source License**
+This project is based on the [MIT License](LICENSE), welcome to freely use, modify and distribute.
 
-### 🙏 **特别致谢**
+### 🙏 **Special Thanks**
 
-**🏆 核心贡献者**：
-- [@weixiaofeng](https://github.com/weixiaofeng) - 项目发起人&首席架构师
-- [@lixiao](https://github.com/lixiao) - LLM架构师
+**🏆 Core Contributors**:
+- [@weixiaofeng](https://github.com/weixiaofeng) - Project Founder & Chief Architect
+- [@lixiao](https://github.com/lixiao) - LLM Architect
 
-**🌍 社区支持**：
-- [Model Context Protocol](https://github.com/modelcontextprotocol) - 协议标准支持
-- [Go语言社区](https://golang.org/) - 技术生态与工具链
-- [OpenAI开发者社区](https://platform.openai.com/) - AI技术生态支持
+**🌍 Community Support**:
+- [Model Context Protocol](https://github.com/modelcontextprotocol) - Protocol standard support
+- [Go Language Community](https://golang.org/) - Technology ecosystem and toolchain
+- [OpenAI Developer Community](https://platform.openai.com/) - AI technology ecosystem support
 
 ---
 
