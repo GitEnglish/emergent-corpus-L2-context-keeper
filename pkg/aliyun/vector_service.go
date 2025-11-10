@@ -3,6 +3,7 @@ package aliyun
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,6 +15,29 @@ import (
 
 	"github.com/contextkeeper/service/internal/models"
 )
+
+// VectorAPIError 阿里云DashVector API错误类型
+// 参考官方文档: https://help.aliyun.com/document_detail/2510266.html
+type VectorAPIError struct {
+	Code      int    `json:"code"`       // 阿里云返回的错误码
+	Message   string `json:"message"`    // 阿里云返回的错误消息
+	RequestID string `json:"request_id"` // 请求ID
+}
+
+func (e *VectorAPIError) Error() string {
+	return fmt.Sprintf("阿里云向量API错误 [code=%d]: %s (request_id=%s)",
+		e.Code, e.Message, e.RequestID)
+}
+
+// IsKeyNotExist 判断是否为"主键不存在"错误（错误码-2024）
+// 参考官方文档: https://help.aliyun.com/document_detail/2510266.html
+func IsKeyNotExist(err error) bool {
+	var apiErr *VectorAPIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == -2024 // InexistentKey: 主键不存在
+	}
+	return false
+}
 
 // 日志颜色常量
 const (

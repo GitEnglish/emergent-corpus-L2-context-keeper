@@ -41,6 +41,7 @@ type MultiDimensionalConfig struct {
 // 存储接口定义（面向应用层的简单统一接口）
 type TimelineStore interface {
 	SearchByQuery(ctx context.Context, req *models.TimelineSearchRequest) ([]*models.TimelineEvent, error)
+	SearchByID(ctx context.Context, eventID string) (*models.TimelineEvent, error) // 🆕 主键检索（返回单个对象）
 }
 
 type KnowledgeStore interface {
@@ -199,6 +200,36 @@ func (mdr *MultiDimensionalRetrieverImpl) executeTimelineRetrieval(ctx context.C
 
 	var allResults []*models.TimelineEvent
 	status := "success"
+
+	// 🆕 核心判断：如果从 context 中检测到 memoryID，走主键检索
+	memoryID, hasMemoryID := ctx.Value("memory_id").(string)
+	if hasMemoryID && memoryID != "" {
+		log.Printf("🔑 [时间线检索] 检测到MemoryID，使用主键检索: %s", memoryID)
+
+		queryStartTime := time.Now()
+		result, err := mdr.timelineStore.SearchByID(timeoutCtx, memoryID)
+		queryDuration := time.Since(queryStartTime)
+
+		if err != nil {
+			log.Printf("❌ [时间线检索-主键] 主键检索失败: %v, 耗时: %v", err, queryDuration)
+			status = "failure"
+		} else if result != nil {
+			log.Printf("✅ [时间线检索-主键] 主键检索成功, 耗时: %v", queryDuration)
+			allResults = append(allResults, result)
+		} else {
+			log.Printf("⚠️ [时间线检索-主键] 主键检索未找到结果, 耗时: %v", queryDuration)
+			status = "failure"
+		}
+
+		return &TimelineRetrievalResult{
+			Results:  allResults,
+			Status:   status,
+			Duration: time.Since(startTime).Milliseconds(),
+		}
+	}
+
+	// ✅ 原有逻辑：没有 memoryID，继续走关键词检索
+	log.Printf("🔍 [时间线检索] 使用关键词检索，查询数量: %d", len(queries))
 
 	// 执行每个时间线查询
 	for i, query := range queries {
@@ -574,6 +605,11 @@ func (mdr *MultiDimensionalRetrieverImpl) DirectTimelineQuery(ctx context.Contex
 func (mdr *MultiDimensionalRetrieverImpl) GetTimelineAdapter() interface{} {
 	log.Printf("🔧 [多维检索器] 返回多维检索器实例作为时间线适配器")
 	return mdr // 直接返回自己，因为DirectTimelineQuery方法已经实现了
+}
+
+// 🆕 GetTimelineStore 获取时间线存储引擎
+func (mdr *MultiDimensionalRetrieverImpl) GetTimelineStore() TimelineStore {
+	return mdr.timelineStore
 }
 
 // getDefaultMultiDimensionalConfig 获取默认配置

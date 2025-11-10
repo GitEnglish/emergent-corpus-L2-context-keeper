@@ -364,6 +364,56 @@ func (engine *TimescaleDBEngine) RetrieveEvents(ctx context.Context, query *Time
 	}, nil
 }
 
+// 🆕 GetByID 根据ID获取单个事件（主键查询）
+func (engine *TimescaleDBEngine) GetByID(ctx context.Context, eventID string) (*TimelineEvent, error) {
+	log.Printf("🔑 [TimescaleDB-主键] 开始主键查询: id=%s", eventID)
+
+	// 🔥 直接执行 SQL 主键查询
+	sqlQuery := `
+		SELECT id, user_id, session_id, workspace_id,
+		       timestamp, event_duration,
+		       event_type, title, content, summary,
+		       related_files, related_concepts, parent_event_id,
+		       intent, keywords, entities, categories,
+		       importance_score, relevance_score,
+		       created_at, updated_at
+		FROM timeline_events
+		WHERE id = $1
+		LIMIT 1
+	`
+
+	log.Printf("🔍 [TimescaleDB-主键] 执行SQL: %s", sqlQuery)
+	log.Printf("🔍 [TimescaleDB-主键] 参数: id=%s", eventID)
+
+	// 执行查询
+	row := engine.db.QueryRowContext(ctx, sqlQuery, eventID)
+
+	// 扫描结果
+	var event TimelineEvent
+	err := row.Scan(
+		&event.ID, &event.UserID, &event.SessionID, &event.WorkspaceID,
+		&event.Timestamp, &event.EventDuration,
+		&event.EventType, &event.Title, &event.Content, &event.Summary,
+		&event.RelatedFiles, &event.RelatedConcepts, &event.ParentEventID,
+		&event.Intent, &event.Keywords, &event.Entities, &event.Categories,
+		&event.ImportanceScore, &event.RelevanceScore,
+		&event.CreatedAt, &event.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		log.Printf("⚠️ [TimescaleDB-主键] 未找到记录: id=%s", eventID)
+		return nil, nil // 返回 nil 表示未找到
+	}
+
+	if err != nil {
+		log.Printf("❌ [TimescaleDB-主键] 查询失败: %v", err)
+		return nil, err
+	}
+
+	log.Printf("✅ [TimescaleDB-主键] 主键查询成功: id=%s, title=%s", event.ID, event.Title)
+	return &event, nil
+}
+
 // buildRetrievalQuery 构建检索查询
 func (engine *TimescaleDBEngine) buildRetrievalQuery(query *TimelineQuery) (string, []interface{}) {
 	baseSQL := `

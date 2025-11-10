@@ -2607,7 +2607,8 @@ func (h *Handler) handleToolRetrieveMemory(ctx context.Context, params map[strin
 	log.Printf("检索记忆: 会话=%s, 用户ID=%s, memoryId=%s, batchId=%s", sessionID, userID, memoryID, batchID)
 
 	// 调用上下文服务检索记忆
-	result, err := h.contextService.RetrieveContext(context.Background(), models.RetrieveContextRequest{
+	// 🔥 修复：使用传入的ctx（包含拦截器注入的user_id等信息），而不是context.Background()
+	result, err := h.contextService.RetrieveContext(ctx, models.RetrieveContextRequest{
 		SessionID:     sessionID,
 		MemoryID:      memoryID,
 		BatchID:       batchID,

@@ -114,11 +114,18 @@ func (ucm *UnifiedContextManager) UpdateContext(
 	// 🔥 无变更，保持原样
 	if contextChanges == nil || !contextChanges.HasChanges {
 		log.Printf("ℹ️ [上下文更新] 无变更，会话: %s", sessionID)
+
+		// ✅ 修复空指针panic：安全获取置信度，处理CurrentTopic为nil的情况（工程感知阶段）
+		confidenceLevel := 0.0
+		if currentContext.CurrentTopic != nil {
+			confidenceLevel = currentContext.CurrentTopic.ConfidenceLevel
+		}
+
 		return &models.ContextUpdateResponse{
 			Success:         true,
 			UpdatedContext:  currentContext,
 			UpdateSummary:   "上下文无需更新",
-			ConfidenceLevel: currentContext.CurrentTopic.ConfidenceLevel,
+			ConfidenceLevel: confidenceLevel,
 			ProcessingTime:  time.Since(startTime).Milliseconds(),
 		}, nil
 	}

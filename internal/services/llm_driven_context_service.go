@@ -101,6 +101,7 @@ type ContentSynthesisEngine interface {
 // 🆕 TimelineAdapter 时间线适配器接口
 type TimelineAdapter interface {
 	Retrieve(ctx context.Context, req *TimelineRetrievalRequest) ([]*models.TimelineEvent, error)
+	SearchByID(ctx context.Context, eventID string) (*models.TimelineEvent, error) // 🆕 主键查询
 }
 
 // 🆕 TimelineRetrievalRequest 时间线检索请求
@@ -174,6 +175,36 @@ func (adapter *SimpleTimelineAdapter) Retrieve(ctx context.Context, req *Timelin
 
 	log.Printf("❌ [SimpleTimelineAdapter] 多维检索器未初始化")
 	return []*models.TimelineEvent{}, nil
+}
+
+// SearchByID 实现TimelineAdapter接口 - 主键查询
+func (adapter *SimpleTimelineAdapter) SearchByID(ctx context.Context, eventID string) (*models.TimelineEvent, error) {
+	log.Printf("🔑 [SimpleTimelineAdapter] 主键查询: eventID=%s", eventID)
+
+	if adapter.impl == nil {
+		return nil, fmt.Errorf("多维检索器未初始化")
+	}
+
+	// 获取时间线存储适配器
+	timelineStore := adapter.impl.GetTimelineStore()
+	if timelineStore == nil {
+		return nil, fmt.Errorf("时间线存储未初始化")
+	}
+
+	// 直接调用存储层的主键查询
+	event, err := timelineStore.SearchByID(ctx, eventID)
+	if err != nil {
+		log.Printf("❌ [SimpleTimelineAdapter] 主键查询失败: %v", err)
+		return nil, err
+	}
+
+	if event == nil {
+		log.Printf("⚠️ [SimpleTimelineAdapter] 未找到记录: eventID=%s", eventID)
+		return nil, nil
+	}
+
+	log.Printf("✅ [SimpleTimelineAdapter] 主键查询成功")
+	return event, nil
 }
 
 // convertTimelineEventToModel 转换时间线事件到模型
@@ -575,6 +606,11 @@ func (lds *LLMDrivenContextService) RetrieveContext(ctx context.Context, req mod
 		return lds.contextService.RetrieveContext(ctx, req)
 	}
 
+	// 🆕 如果传入了 memoryID，优先进行精确检索（跳过LLM分析）
+	if req.MemoryID != "" {
+		return lds.retrieveByMemoryID(ctx, req)
+	}
+
 	log.Printf("🚀 [LLM驱动服务] 启用LLM驱动智能化流程，查询: %s", req.Query)
 	lds.metrics.LLMDrivenRequests++
 
@@ -637,6 +673,12 @@ func (lds *LLMDrivenContextService) executeLLMDrivenFlow(ctx context.Context, re
 			if analysisResult.Keywords != nil {
 				analysisResult.Queries.KeyConcepts = analysisResult.Keywords
 				log.Printf("🔥 [LLM驱动服务] 已设置关键概念: %v", analysisResult.Keywords)
+			}
+
+			// 🆕 如果有 memoryID，注入到 context
+			if req.MemoryID != "" {
+				ctx = context.WithValue(ctx, "memory_id", req.MemoryID)
+				log.Printf("🔑 [LLM驱动服务] 检测到MemoryID，注入到context: %s", req.MemoryID)
 			}
 
 			retrievalResults, err := lds.multiRetriever.ParallelRetrieve(ctx, analysisResult.Queries)
@@ -728,6 +770,58 @@ func (lds *LLMDrivenContextService) executeLLMDrivenFlow(ctx context.Context, re
 	// 如果某些组件未启用，降级到基础服务
 	log.Printf("⚠️ [LLM驱动服务] LLM驱动组件未完全启用，降级到基础服务")
 	return lds.contextService.RetrieveContext(ctx, req)
+}
+
+// retrieveByMemoryID 基于 memoryID 进行精确检索（跳过LLM分析）
+func (lds *LLMDrivenContextService) retrieveByMemoryID(ctx context.Context, req models.RetrieveContextRequest) (models.ContextResponse, error) {
+	log.Printf("🔑 [精确检索] 检测到MemoryID，跳过LLM分析: %s", req.MemoryID)
+
+	// 尝试通过基础ContextService检索（可能从向量存储检索）
+	result, err := lds.contextService.RetrieveContext(ctx, req)
+	if err == nil && result.LongTermMemory != "" {
+		log.Printf("✅ [精确检索] 向量存储检索成功")
+		return result, nil
+	}
+
+	// 降级到时间线主键查询
+	log.Printf("⚠️ [精确检索] 向量存储未找到(err=%v)，降级到时间线主键查询", err)
+
+	// 从 context 获取必要信息
+	userID, _ := ctx.Value("user_id").(string)
+	if userID == "" {
+		return models.ContextResponse{}, fmt.Errorf("无法获取用户ID")
+	}
+
+	// 直接调用时间线的主键查询（不走多维并行检索）
+	if lds.multiRetriever != nil {
+		log.Printf("🔍 [精确检索] 时间线主键查询: memoryID=%s, userID=%s", req.MemoryID, userID)
+
+		// 获取时间线适配器
+		timelineAdapter := lds.multiRetriever.GetTimelineAdapter()
+		if timelineAdapter == nil {
+			log.Printf("❌ [精确检索] 时间线适配器未初始化")
+			return models.ContextResponse{}, fmt.Errorf("时间线适配器未初始化")
+		}
+
+		// 直接调用主键查询
+		event, err := timelineAdapter.SearchByID(ctx, req.MemoryID)
+		if err != nil {
+			log.Printf("❌ [精确检索] 时间线主键查询失败: %v", err)
+		} else if event != nil {
+			log.Printf("✅ [精确检索] 时间线主键查询成功")
+
+			// 只返回 content 字段到长期记忆
+			return models.ContextResponse{
+				LongTermMemory: event.Content,
+			}, nil
+		} else {
+			log.Printf("⚠️ [精确检索] 时间线主键查询未找到记录")
+		}
+	}
+
+	// 所有检索方式均未找到
+	log.Printf("⚠️ [精确检索] 所有方式均未找到 memoryID: %s", req.MemoryID)
+	return models.ContextResponse{}, nil
 }
 
 // buildContextResponse 从合成响应构建ContextResponse
@@ -1011,6 +1105,55 @@ func (adapter *TimelineStoreAdapter) SearchByQuery(ctx context.Context, req *mod
 		log.Printf("⚠️ [时间线适配器] 引擎类型不匹配: %T，返回空结果", adapter.Engine)
 		return []*models.TimelineEvent{}, nil
 	}
+}
+
+// 🆕 SearchByID 实现主键检索
+func (adapter *TimelineStoreAdapter) SearchByID(ctx context.Context, eventID string) (*models.TimelineEvent, error) {
+	log.Printf("🔑 [时间线适配器-主键] 开始主键检索: id=%s", eventID)
+
+	if adapter.Engine == nil {
+		log.Printf("❌ [时间线适配器-主键] 引擎为nil")
+		return nil, fmt.Errorf("时间线引擎未初始化")
+	}
+
+	// 类型断言为 TimescaleDB 引擎
+	timelineEngine, ok := adapter.Engine.(*timeline.TimescaleDBEngine)
+	if !ok {
+		log.Printf("❌ [时间线适配器-主键] 引擎类型不匹配: %T", adapter.Engine)
+		return nil, fmt.Errorf("引擎类型不匹配")
+	}
+
+	// 🔥 直接调用引擎的 GetByID 方法（需要在 engine 中实现）
+	event, err := timelineEngine.GetByID(ctx, eventID)
+	if err != nil {
+		log.Printf("❌ [时间线适配器-主键] 主键检索失败: %v", err)
+		return nil, err
+	}
+
+	if event == nil {
+		log.Printf("⚠️ [时间线适配器-主键] 未找到记录: id=%s", eventID)
+		return nil, nil
+	}
+
+	// 转换为 models.TimelineEvent
+	modelEvent := &models.TimelineEvent{
+		ID:              event.ID,
+		UserID:          event.UserID,
+		SessionID:       event.SessionID,
+		WorkspaceID:     event.WorkspaceID,
+		Timestamp:       event.Timestamp,
+		EventType:       event.EventType,
+		Title:           event.Title,
+		Content:         event.Content,
+		Summary:         event.Summary,
+		ImportanceScore: event.ImportanceScore,
+		RelevanceScore:  event.RelevanceScore,
+		CreatedAt:       event.CreatedAt,
+		UpdatedAt:       event.UpdatedAt,
+	}
+
+	log.Printf("✅ [时间线适配器-主键] 主键检索成功")
+	return modelEvent, nil
 }
 
 // 🆕 checkTimelineRecallQuery 检查是否为时间回忆查询

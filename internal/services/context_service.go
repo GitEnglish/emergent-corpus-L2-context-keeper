@@ -2066,6 +2066,9 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 	var storageErrors []error
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
+	// 🔥 新增：核心存储引擎失败标记（时间线+向量同时失败才算整体失败）
+	var timelineFailed bool
+	var vectorFailed bool
 
 	// 检查存储条件
 	timelineStorage := analysisResult.StorageRecommendations.TimelineStorage
@@ -2093,6 +2096,7 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 				log.Printf("❌ [并行-时间线] 时间线存储失败: %v, 耗时: %v", err, time.Since(startTime))
 				mutex.Lock()
 				storageErrors = append(storageErrors, fmt.Errorf("时间线存储失败: %w", err))
+				timelineFailed = true // 🔥 直接标记时间线失败
 				mutex.Unlock()
 			} else {
 				log.Printf("✅ [并行-时间线] 时间线存储成功, 耗时: %v", time.Since(startTime))
@@ -2135,6 +2139,7 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 				log.Printf("❌ [并行-向量] 多向量存储失败: %v, 耗时: %v", err, time.Since(startTime))
 				mutex.Lock()
 				storageErrors = append(storageErrors, fmt.Errorf("多向量存储失败: %w", err))
+				vectorFailed = true // 🔥 直接标记向量失败
 				mutex.Unlock()
 			} else {
 				log.Printf("✅ [并行-向量] 多向量存储成功, 耗时: %v", time.Since(startTime))
@@ -2149,9 +2154,19 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 	wg.Wait()
 	log.Printf("🏁 [智能存储] 所有并行存储已完成")
 
-	// 如果所有存储都失败，返回错误
-	if len(storageErrors) > 0 && len(storageErrors) == 3 {
-		return "", fmt.Errorf("所有存储引擎都失败: %v", storageErrors)
+	// 🔥 新判断逻辑：只有时间线和向量都失败才算整体失败
+	// 知识图谱失败不影响整体成功（允许失败）
+	if timelineFailed && vectorFailed {
+		log.Printf("❌ [智能存储] 核心存储引擎(时间线+向量)都失败，整体失败")
+		return "", fmt.Errorf("核心存储引擎(时间线+向量)都失败: %v", storageErrors)
+	}
+
+	// 至少一个核心存储引擎成功，整体成功
+	if timelineFailed {
+		log.Printf("⚠️ [智能存储] 时间线存储失败，但向量存储成功，整体成功")
+	}
+	if vectorFailed {
+		log.Printf("⚠️ [智能存储] 向量存储失败，但时间线存储成功，整体成功")
 	}
 
 	log.Printf("🎉 [智能存储] 智能存储完成，记忆ID: %s", memoryID)
