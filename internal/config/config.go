@@ -128,7 +128,7 @@ func Load() *Config {
 		VectorDBCollection:  getEnv("VECTOR_DB_COLLECTION", "context_keeper"),
 		VectorDBDimension:   getEnvAsInt("VECTOR_DB_DIMENSION", 1536),
 		VectorDBMetric:      getEnv("VECTOR_DB_METRIC", "cosine"),
-		SimilarityThreshold: getEnvAsFloat("SIMILARITY_THRESHOLD", 0.3),
+		SimilarityThreshold: getEnvAsFloat("SIMILARITY_THRESHOLD", 0.5),
 
 		// 服务器端口配置
 		HTTPServerPort:      getEnv("HTTP_SERVER_PORT", "8088"),

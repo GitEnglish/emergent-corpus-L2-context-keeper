@@ -36,6 +36,9 @@ type ContextService struct {
 	// 🔥 新增：TimescaleDB时间线存储引擎
 	timelineEngine *timeline.TimescaleDBEngine
 
+	// 🆕 新增：实体向量存储服务（知识图谱+向量混合检索）
+	entityVectorService *EntityVectorService
+
 	// 🔧 临时解决方案：存储最后一次分析结果
 	lastAnalysisResult  *models.SmartAnalysisResult
 	analysisResultMutex sync.RWMutex
@@ -57,13 +60,17 @@ func NewContextService(vectorSvc *aliyun.VectorService, sessionStore *store.Sess
 		log.Printf("✅ [配置加载] LLM驱动配置加载成功")
 	}
 
+	// 🆕 初始化实体向量存储服务
+	entityVectorService := NewEntityVectorService(vectorSvc)
+
 	return &ContextService{
-		vectorService:      vectorSvc,
-		vectorStore:        nil, // 初始为nil，表示使用传统vectorService
-		sessionStore:       sessionStore,
-		userSessionManager: userSessionManager,
-		config:             cfg,
-		llmDrivenConfig:    llmDrivenConfig, // 🆕 LLM驱动配置
+		vectorService:       vectorSvc,
+		vectorStore:         nil, // 初始为nil，表示使用传统vectorService
+		sessionStore:        sessionStore,
+		userSessionManager:  userSessionManager,
+		config:              cfg,
+		llmDrivenConfig:     llmDrivenConfig,     // 🆕 LLM驱动配置
+		entityVectorService: entityVectorService, // 🆕 实体向量服务
 	}
 }
 
@@ -87,6 +94,11 @@ func (s *ContextService) GetCurrentVectorService() interface{} {
 		return s.vectorStore
 	}
 	return s.vectorService
+}
+
+// GetEntityVectorService 获取实体向量服务
+func (s *ContextService) GetEntityVectorService() *EntityVectorService {
+	return s.entityVectorService
 }
 
 // generateEmbedding 统一的向量生成接口
@@ -1169,66 +1181,144 @@ func (s *ContextService) executeDedicatedKGAnalysis(contextData *models.LLMDrive
 }
 
 // buildDedicatedKGPrompt 构建专门的知识图谱抽取prompt（方案二：高质量专门化）
+// 🔥 优化版本：强调"语义最小完整单元"原则，增加Few-Shot示例
 func (s *ContextService) buildDedicatedKGPrompt(contextData *models.LLMDrivenContextModel, content string) string {
 	return fmt.Sprintf(`你是专业的知识图谱构建专家，专门从技术文档和对话中抽取实体和关系。
 
-## 🎯 核心任务
-从用户内容中构建高质量的知识图谱，提取实体和关系信息。
+## 🎯 核心原则：语义最小完整单元
 
-## 📊 实体抽取标准（6种通用类型）
+提取的每个实体必须是一个**语义完整、边界清晰**的概念单元，不能过度拆分。
 
-### 1. Technical（技术实体）
-- 编程语言: Go, Python, Java, JavaScript, C++
-- 框架工具: Spring Boot, React, Vue, Docker, Kubernetes
-- 数据库: MySQL, Redis, PostgreSQL, Neo4j, MongoDB
-- 技术产品: Context-Keeper, 微服务系统, API网关
+### 语义边界判断规则
 
-### 2. Project（项目工作）
-- 项目: 电商系统开发, 性能优化项目, 架构重构
-- 功能: 订单支付模块, 用户管理功能, 数据分析
-- 任务: 数据库优化, 接口开发, 性能调优
+**规则1：限定词改变语义边界**
+- 不同的限定词 = 不同的实体
+- "Redis连接池" ≠ "MySQL连接池" ≠ "数据库连接池"（三个不同的实体）
+- "Redis连接池" 是特指，"数据库连接池" 是泛指
 
-### 3. Concept（技术概念）
-- 架构概念: 微服务架构, 分层设计, 事件驱动
-- 技术概念: 并发处理, 缓存策略, 负载均衡
-- 设计模式: 单例模式, 工厂模式, 观察者模式
+**规则2：修饰词不改变核心边界**
+- 同一核心概念的不同方面可合并或分开
+- "Redis连接池" ≈ "Redis连接池配置" ≈ "Redis连接池优化"
+- 如果上下文中分别强调，可以作为独立实体
 
-### 4. Issue（事件问题）
-- 技术问题: 性能瓶颈, 内存泄漏, 并发问题
-- 系统事件: 服务故障, 数据丢失, 网络中断
-- 优化事件: 性能优化, 架构升级, 代码重构
+**规则3：组合产生新语义时保持整体**
+- "Redis" + "连接池" 组合后产生新含义（特指Redis的连接池机制）
+- 应提取为 "Redis连接池"，而非拆分为 "Redis" 和 "连接池"
 
-### 5. Data（数据资源）
-- 性能数据: 72秒, 1000TPS, 15%%失败率, 99.9%%可用性
-- 配置参数: 超时时间, 连接池大小, 缓存大小
-- 版本信息: v1.0.0, 2025-08-20, 第一阶段
+**规则4：简单并列时可分开**
+- "Redis和MySQL" → 应分开为 "Redis", "MySQL"
+- 它们是两个独立概念的并列关系
 
-### 6. Process（操作流程）
-- 技术操作: 数据库查询, API调用, 缓存更新
-- 部署操作: 服务部署, 配置更新, 环境切换
-- 开发流程: 代码审查, 测试执行, 持续集成
+## 📊 实体类型定义
 
-## 🔗 关系抽取标准（5种核心关系）
+| 类型 | 英文 | 说明 | 示例 |
+|-----|------|------|------|
+| 技术实体 | Technical | 技术、工具、框架、系统、具体技术方案 | Redis连接池、Spring Boot、Kafka消息队列 |
+| 问题实体 | Issue | 具体问题、故障现象、异常情况 | 连接超时、OOM异常、连接池耗尽 |
+| 解决方案 | Solution | 解决问题的方法、优化措施 | 连接池调优、分库分表、缓存预热 |
+| 配置实体 | Config | 配置项、参数、设置 | maxTotal配置、timeout设置、maxIdle配置 |
+| 概念实体 | Concept | 抽象概念、设计模式、架构理念 | 微服务架构、CQRS模式、分布式事务 |
+| 项目实体 | Project | 项目、任务、功能模块 | 订单系统、支付模块、用户中心服务 |
 
-### 1. USES（使用关系）
-- 技术栈: Context-Keeper USES Neo4j
-- 工具链: 项目 USES Spring Boot
+## 🔗 关系类型定义
 
-### 2. SOLVES（解决关系）
-- 问题解决: 性能优化 SOLVES 响应慢
-- 技术解决: 缓存策略 SOLVES 并发问题
+| 关系 | 说明 | 示例 |
+|------|------|------|
+| HAS_ISSUE | 技术/系统存在的问题 | (Redis连接池)--[HAS_ISSUE]-->(连接超时) |
+| SOLVED_BY | 问题的解决方案 | (连接超时)--[SOLVED_BY]-->(maxTotal调优) |
+| HAS_CONFIG | 技术的配置项 | (Redis连接池)--[HAS_CONFIG]-->(maxTotal配置) |
+| DEPENDS_ON | 依赖关系 | (订单服务)--[DEPENDS_ON]-->(Redis) |
+| RELATED_TO | 相关关系 | (Redis连接池)--[RELATED_TO]-->(Jedis客户端) |
+| CAUSES | 导致关系 | (配置不当)--[CAUSES]-->(连接超时) |
+| IS_A | 上下位关系 | (MySQL连接池)--[IS_A]-->(数据库连接池) |
+| USES | 使用关系 | (订单服务)--[USES]-->(Redis连接池) |
+| IMPLEMENTED_BY | 实现关系 | (Redis连接池)--[IMPLEMENTED_BY]-->(Jedis) |
 
-### 3. BELONGS_TO（归属关系）
-- 模块归属: 支付模块 BELONGS_TO 电商系统
-- 功能归属: 用户登录 BELONGS_TO 用户管理
+---
 
-### 4. CAUSES（因果关系）
-- 问题原因: 高并发 CAUSES 性能下降
-- 技术因果: 内存泄漏 CAUSES 系统崩溃
+## 📚 Few-Shot 示例（重要！请仔细学习）
 
-### 5. RELATED_TO（相关关系）
-- 概念相关: 微服务 RELATED_TO 分布式架构
-- 技术相关: Docker RELATED_TO Kubernetes
+### 示例1：技术问题场景（正确的语义完整提取）
+
+**输入**：
+Redis连接池配置不当导致生产环境连接超时，分析发现maxTotal设置为8太小，高并发时连接池耗尽。将maxTotal调整为200后问题解决。
+
+**正确输出**：
+{
+  "entities": [
+    {"title": "Redis连接池", "type": "Technical", "description": "Redis客户端连接池机制", "confidence": 0.95},
+    {"title": "连接超时", "type": "Issue", "description": "连接池获取连接超时问题", "confidence": 0.9},
+    {"title": "连接池耗尽", "type": "Issue", "description": "高并发下连接池资源用完", "confidence": 0.9},
+    {"title": "maxTotal配置", "type": "Config", "description": "连接池最大连接数配置", "confidence": 0.95}
+  ],
+  "relationships": [
+    {"source": "Redis连接池", "target": "连接超时", "relation_type": "HAS_ISSUE"},
+    {"source": "Redis连接池", "target": "连接池耗尽", "relation_type": "HAS_ISSUE"},
+    {"source": "连接池耗尽", "target": "连接超时", "relation_type": "CAUSES"},
+    {"source": "Redis连接池", "target": "maxTotal配置", "relation_type": "HAS_CONFIG"},
+    {"source": "maxTotal配置", "target": "连接超时", "relation_type": "SOLVED_BY"}
+  ]
+}
+
+**为什么这样提取**：
+- ✅ "Redis连接池" 作为整体，不拆分为 "Redis" + "连接池"
+- ✅ "连接超时" 是具体问题，不是泛化的 "超时"
+- ✅ "maxTotal配置" 是具体配置项，包含了配置项名称
+- ❌ 错误示范: {"title": "Redis"}, {"title": "连接池"} - 过度拆分，丢失语义
+
+### 示例2：多技术对比场景（正确识别并列关系）
+
+**输入**：
+对比了Redis和MySQL作为缓存层的性能差异。Redis读取QPS可达10万，MySQL只有1万。最终选择Redis作为一级缓存，MySQL作为持久化存储。
+
+**正确输出**：
+{
+  "entities": [
+    {"title": "Redis", "type": "Technical", "description": "NoSQL内存数据库", "confidence": 0.95},
+    {"title": "MySQL", "type": "Technical", "description": "关系型数据库", "confidence": 0.95},
+    {"title": "一级缓存", "type": "Concept", "description": "最快访问的缓存层", "confidence": 0.85},
+    {"title": "持久化存储", "type": "Concept", "description": "数据持久化层", "confidence": 0.85}
+  ],
+  "relationships": [
+    {"source": "Redis", "target": "一级缓存", "relation_type": "USES"},
+    {"source": "MySQL", "target": "持久化存储", "relation_type": "USES"},
+    {"source": "Redis", "target": "MySQL", "relation_type": "RELATED_TO"}
+  ]
+}
+
+**为什么这样提取**：
+- ✅ "Redis" 和 "MySQL" 是两个独立技术，并列关系，分开提取
+- ❌ 错误示范: {"title": "Redis和MySQL"} - 不应将并列关系作为单一实体
+
+### 示例3：边界情况（区分泛指和特指）
+
+**输入**：
+优化了数据库连接池的配置，主要调整了MySQL连接池和Redis连接池的参数。MySQL连接池maxActive从20增加到100，Redis连接池maxTotal从50增加到200。
+
+**正确输出**：
+{
+  "entities": [
+    {"title": "数据库连接池", "type": "Concept", "description": "连接池概念（泛指）", "confidence": 0.85},
+    {"title": "MySQL连接池", "type": "Technical", "description": "MySQL数据库连接池", "confidence": 0.95},
+    {"title": "Redis连接池", "type": "Technical", "description": "Redis连接池", "confidence": 0.95},
+    {"title": "maxActive配置", "type": "Config", "description": "MySQL连接池最大活跃连接", "confidence": 0.9},
+    {"title": "maxTotal配置", "type": "Config", "description": "Redis连接池最大连接数", "confidence": 0.9}
+  ],
+  "relationships": [
+    {"source": "MySQL连接池", "target": "数据库连接池", "relation_type": "IS_A"},
+    {"source": "Redis连接池", "target": "数据库连接池", "relation_type": "IS_A"},
+    {"source": "MySQL连接池", "target": "maxActive配置", "relation_type": "HAS_CONFIG"},
+    {"source": "Redis连接池", "target": "maxTotal配置", "relation_type": "HAS_CONFIG"}
+  ]
+}
+
+**为什么这样提取**：
+- ✅ "数据库连接池" 是泛指概念，作为独立实体
+- ✅ "MySQL连接池" 和 "Redis连接池" 是特指，各自独立
+- ✅ 三者关系通过 IS_A（上下位关系）连接
+- ❌ 错误示范: 将"数据库连接池"等同于"Redis连接池" - 不同语义边界
+
+---
 
 ## 📝 分析内容
 **会话ID**: %s
@@ -1240,22 +1330,21 @@ func (s *ContextService) buildDedicatedKGPrompt(contextData *models.LLMDrivenCon
 {
   "entities": [
     {
-      "title": "Context-Keeper",
-      "type": "Technical",
-      "description": "LLM驱动的上下文管理系统",
-      "confidence": 0.95,
-      "keywords": ["上下文", "管理", "LLM"]
+      "title": "实体名称（语义完整单元）",
+      "type": "Technical|Issue|Solution|Config|Concept|Project",
+      "description": "简短描述",
+      "confidence": 0.9,
+      "keywords": ["关键词1", "关键词2"]
     }
   ],
   "relationships": [
     {
-      "source": "性能优化",
-      "target": "客户端超时",
-      "relation_type": "SOLVES",
-      "description": "性能优化解决了客户端超时问题",
-      "strength": 9,
-      "confidence": 0.9,
-      "evidence": "接口耗时从72秒降到22秒，客户端超时问题完全消除"
+      "source": "源实体名",
+      "target": "目标实体名",
+      "relation_type": "HAS_ISSUE|SOLVED_BY|HAS_CONFIG|DEPENDS_ON|RELATED_TO|CAUSES|IS_A|USES|IMPLEMENTED_BY",
+      "description": "关系描述",
+      "strength": 8,
+      "confidence": 0.85
     }
   ],
   "extraction_meta": {
@@ -2119,14 +2208,31 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 			defer wg.Done()
 			startTime := time.Now()
 
-			log.Printf("🕸️ [并行-知识图谱] 执行知识图谱存储")
-			if err := s.storeKnowledgeDataToNeo4j(ctx, analysisResult, req, memoryID); err != nil {
+			// 🔥 传入预生成的knowledgeIDs，与实体向量存储共用同一套UUID
+			log.Printf("🕸️ [并行-知识图谱] 执行知识图谱存储（使用预生成UUID）")
+			if err := s.storeKnowledgeDataToNeo4j(ctx, analysisResult, req, memoryID, knowledgeIDs); err != nil {
 				log.Printf("❌ [并行-知识图谱] 知识图谱存储失败: %v, 耗时: %v", err, time.Since(startTime))
 				mutex.Lock()
 				storageErrors = append(storageErrors, fmt.Errorf("知识图谱存储失败: %w", err))
 				mutex.Unlock()
 			} else {
 				log.Printf("✅ [并行-知识图谱] 知识图谱存储成功, 耗时: %v", time.Since(startTime))
+			}
+		}()
+
+		// 🆕 实体向量存储 (与知识图谱并行，共用预生成UUID)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startTime := time.Now()
+
+			// 🔥 传入预生成的knowledgeIDs，用于填充Neo4jNodeID
+			log.Printf("🔄 [并行-实体向量] 执行实体向量存储（使用预生成UUID）")
+			if err := s.storeEntityVectorsFromAnalysis(ctx, analysisResult, req, memoryID, knowledgeIDs); err != nil {
+				log.Printf("⚠️ [并行-实体向量] 实体向量存储失败: %v, 耗时: %v", err, time.Since(startTime))
+				// 实体向量存储失败不阻断主流程，仅记录警告
+			} else {
+				log.Printf("✅ [并行-实体向量] 实体向量存储成功, 耗时: %v", time.Since(startTime))
 			}
 		}()
 	} else {
@@ -2338,21 +2444,25 @@ func (s *ContextService) storeMultiVectorData(analysisResult *models.SmartAnalys
 // ==================== 🆕 新增：知识节点UUID关联方法 ====================
 
 // KnowledgeNodeIDs 知识节点UUID集合（用于Memory与知识节点双向关联）
+// 🔥 增加 EntityNameToUUID 映射，实现实体名称到UUID的关联，支持图谱+向量混合检索
 type KnowledgeNodeIDs struct {
-	EntityIDs   []string // Entity的UUID列表
-	EventIDs    []string // Event的UUID列表
-	SolutionIDs []string // Solution的UUID列表
+	EntityIDs        []string          // Entity的UUID列表
+	EventIDs         []string          // Event的UUID列表
+	SolutionIDs      []string          // Solution的UUID列表
+	EntityNameToUUID map[string]string // 🆕 实体名称 -> UUID 映射（用于实体向量存储时填充Neo4jNodeID）
 }
 
 // extractKnowledgeNodeIDsFromAnalysis 从LLM分析结果中预先提取知识节点UUID
 // 这是一个纯内存操作，无IO，用于实现完全并行存储
+// 🔥 同时建立实体名称到UUID的映射，供Neo4j存储和实体向量存储共用
 func (s *ContextService) extractKnowledgeNodeIDsFromAnalysis(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string) KnowledgeNodeIDs {
 	log.Printf("🔍 [知识节点预提取] 开始从LLM分析结果中提取知识节点UUID")
 
 	ids := KnowledgeNodeIDs{
-		EntityIDs:   []string{},
-		EventIDs:    []string{},
-		SolutionIDs: []string{},
+		EntityIDs:        []string{},
+		EventIDs:         []string{},
+		SolutionIDs:      []string{},
+		EntityNameToUUID: make(map[string]string), // 🆕 初始化映射
 	}
 
 	// 检查是否有LLM抽取的知识图谱信息
@@ -2365,6 +2475,9 @@ func (s *ContextService) extractKnowledgeNodeIDsFromAnalysis(analysisResult *mod
 	for _, llmEntity := range analysisResult.KnowledgeGraphExtraction.Entities {
 		entityUUID := uuid.New().String()
 
+		// 🆕 建立实体名称到UUID的映射（无论什么类型都需要）
+		ids.EntityNameToUUID[llmEntity.Title] = entityUUID
+
 		switch strings.ToLower(llmEntity.Type) {
 		case "issue", "problem", "bug", "error":
 			ids.EventIDs = append(ids.EventIDs, entityUUID)
@@ -2375,8 +2488,8 @@ func (s *ContextService) extractKnowledgeNodeIDsFromAnalysis(analysisResult *mod
 		}
 	}
 
-	log.Printf("✅ [知识节点预提取] 完成 - Entity: %d, Event: %d, Solution: %d",
-		len(ids.EntityIDs), len(ids.EventIDs), len(ids.SolutionIDs))
+	log.Printf("✅ [知识节点预提取] 完成 - Entity: %d, Event: %d, Solution: %d, 名称映射: %d",
+		len(ids.EntityIDs), len(ids.EventIDs), len(ids.SolutionIDs), len(ids.EntityNameToUUID))
 	return ids
 }
 
@@ -2833,28 +2946,18 @@ func (s *ContextService) simpleTitle(content string) string {
 }
 
 // storeKnowledgeDataToNeo4j 存储知识图谱数据到Neo4j
-func (s *ContextService) storeKnowledgeDataToNeo4j(ctx context.Context, analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string) error {
-	log.Printf("🕸️ [Neo4j存储] 开始存储知识图谱数据")
+// 🔥 增加 knowledgeIDs 参数，使用预生成的UUID，与实体向量存储共用同一套ID
+func (s *ContextService) storeKnowledgeDataToNeo4j(ctx context.Context, analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string, knowledgeIDs KnowledgeNodeIDs) error {
+	log.Printf("🕸️ [Neo4j存储] 开始存储知识图谱数据（使用预生成UUID，映射数: %d）", len(knowledgeIDs.EntityNameToUUID))
 
-	// 构建知识图谱数据
-	knowledgeData := map[string]interface{}{
-		"session_id":    req.SessionID,
-		"user_id":       req.UserID,
-		"memory_id":     memoryID,
-		"content":       req.Content,
-		"priority":      req.Priority,
-		"metadata":      req.Metadata,
-		"analysis_data": analysisResult,
-		"created_at":    time.Now(),
-	}
-
-	// 调用真实的Neo4j存储
-	return s.storeToRealNeo4j(ctx, knowledgeData, req, memoryID)
+	// 调用真实的Neo4j存储，传入预生成的knowledgeIDs
+	return s.storeToRealNeo4j(ctx, analysisResult, req, memoryID, knowledgeIDs)
 }
 
 // storeToRealNeo4j 存储到真实的Neo4j（使用新的Entity/Event/Solution模型）
-func (s *ContextService) storeToRealNeo4j(ctx context.Context, knowledgeData map[string]interface{}, req models.StoreContextRequest, memoryID string) error {
-	log.Printf("🔥 [真实Neo4j v2] 开始连接Neo4j并存储数据 - 使用新模型")
+// 🔥 重构：直接接收 analysisResult 和 knowledgeIDs，不再通过 map 传递
+func (s *ContextService) storeToRealNeo4j(ctx context.Context, analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string, knowledgeIDs KnowledgeNodeIDs) error {
+	log.Printf("🔥 [真实Neo4j v2] 开始连接Neo4j并存储数据 - 使用预生成UUID")
 
 	// 获取Neo4j配置
 	neo4jConfig := s.getNeo4jConfig()
@@ -2871,21 +2974,8 @@ func (s *ContextService) storeToRealNeo4j(ctx context.Context, knowledgeData map
 	}
 	defer knowledgeEngine.Close(ctx)
 
-	// 从knowledgeData中获取LLM分析结果
-	analysisDataRaw, exists := knowledgeData["analysis_data"]
-	if !exists {
-		log.Printf("⚠️ [真实Neo4j v2] 缺少LLM分析结果，跳过存储")
-		return nil
-	}
-
-	analysisResult, ok := analysisDataRaw.(*models.SmartAnalysisResult)
-	if !ok {
-		log.Printf("⚠️ [真实Neo4j v2] LLM分析结果格式错误，跳过存储")
-		return nil
-	}
-
-	// 🆕 使用新模型存储：Entity/Event/Solution
-	entities, events, solutions, relations := s.extractKnowledgeNodesFromAnalysis(analysisResult, req, memoryID)
+	// 🆕 使用新模型存储：Entity/Event/Solution，传入预生成的 knowledgeIDs
+	entities, events, solutions, relations := s.extractKnowledgeNodesFromAnalysis(analysisResult, req, memoryID, knowledgeIDs)
 
 	// 批量存储Entity节点
 	if len(entities) > 0 {
@@ -2928,8 +3018,9 @@ func (s *ContextService) storeToRealNeo4j(ctx context.Context, knowledgeData map
 }
 
 // extractKnowledgeNodesFromAnalysis 从LLM分析结果中提取知识节点（使用新模型）
-func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string) ([]*knowledge.Entity, []*knowledge.Event, []*knowledge.Solution, []*knowledge.Relation) {
-	log.Printf("🔍 [知识抽取] 开始从LLM分析结果中提取知识节点")
+// 🔥 增加 knowledgeIDs 参数，使用预生成的UUID，与实体向量存储共用同一套ID
+func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string, knowledgeIDs KnowledgeNodeIDs) ([]*knowledge.Entity, []*knowledge.Event, []*knowledge.Solution, []*knowledge.Relation) {
+	log.Printf("🔍 [知识抽取] 开始从LLM分析结果中提取知识节点（使用预生成UUID，映射数: %d）", len(knowledgeIDs.EntityNameToUUID))
 
 	var entities []*knowledge.Entity
 	var events []*knowledge.Event
@@ -2948,12 +3039,17 @@ func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *model
 	if analysisResult.KnowledgeGraphExtraction != nil && len(analysisResult.KnowledgeGraphExtraction.Entities) > 0 {
 		log.Printf("✅ [知识抽取] 使用LLM抽取的知识图谱信息，实体数: %d", len(analysisResult.KnowledgeGraphExtraction.Entities))
 
-		// 预先生成UUID映射（名称 -> UUID）
-		nameToUUID := make(map[string]string)
+		// 🔥 使用预生成的UUID映射，不再重新生成
+		nameToUUID := knowledgeIDs.EntityNameToUUID
 
 		for _, llmEntity := range analysisResult.KnowledgeGraphExtraction.Entities {
-			entityID := uuid.New().String()
-			nameToUUID[llmEntity.Title] = entityID
+			// 🔥 从预生成映射中获取UUID，确保与实体向量存储一致
+			entityID, exists := nameToUUID[llmEntity.Title]
+			if !exists {
+				// 降级：如果映射中没有，生成新的UUID（不应该发生）
+				entityID = uuid.New().String()
+				log.Printf("⚠️ [知识抽取] 实体 %s 在预生成映射中不存在，生成新UUID: %s", llmEntity.Title, entityID)
+			}
 
 			// 根据LLM类型分类到不同的节点类型
 			switch strings.ToLower(llmEntity.Type) {
@@ -2970,7 +3066,7 @@ func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *model
 					UpdatedAt:   now,
 				}
 				events = append(events, event)
-				log.Printf("🎯 [知识抽取] 创建Event: %s (ID: %s)", event.Name, event.ID)
+				log.Printf("🎯 [知识抽取] 创建Event: %s (ID: %s, 预生成: %v)", event.Name, event.ID, exists)
 
 			case "solution", "fix", "workaround", "method":
 				// 映射到Solution节点
@@ -2985,7 +3081,7 @@ func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *model
 					UpdatedAt:   now,
 				}
 				solutions = append(solutions, solution)
-				log.Printf("🎯 [知识抽取] 创建Solution: %s (ID: %s)", solution.Name, solution.ID)
+				log.Printf("🎯 [知识抽取] 创建Solution: %s (ID: %s, 预生成: %v)", solution.Name, solution.ID, exists)
 
 			default:
 				// 其他类型映射到Entity节点
@@ -3001,7 +3097,7 @@ func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *model
 					UpdatedAt:   now,
 				}
 				entities = append(entities, entity)
-				log.Printf("🎯 [知识抽取] 创建Entity: %s (Type: %s, ID: %s)", entity.Name, entity.Type, entity.ID)
+				log.Printf("🎯 [知识抽取] 创建Entity: %s (Type: %s, ID: %s, 预生成: %v)", entity.Name, entity.Type, entity.ID, exists)
 			}
 		}
 
@@ -3139,6 +3235,24 @@ func (s *ContextService) getNeo4jConfig() *knowledge.Neo4jConfig {
 // createNeo4jEngine 创建Neo4j引擎
 func (s *ContextService) createNeo4jEngine(config *knowledge.Neo4jConfig) (*knowledge.Neo4jEngine, error) {
 	return knowledge.NewNeo4jEngine(config)
+}
+
+// GetKnowledgeEngine 获取知识图谱引擎（用于检索链路）
+// 注意：每次调用创建新引擎，调用者负责调用 Close() 释放资源
+func (s *ContextService) GetKnowledgeEngine() (*knowledge.Neo4jEngine, error) {
+	neo4jConfig := s.getNeo4jConfig()
+	if neo4jConfig == nil {
+		return nil, fmt.Errorf("Neo4j配置未找到")
+	}
+
+	engine, err := s.createNeo4jEngine(neo4jConfig)
+	if err != nil {
+		log.Printf("❌ [知识图谱引擎] 创建引擎失败: %v", err)
+		return nil, fmt.Errorf("创建Neo4j引擎失败: %w", err)
+	}
+
+	log.Printf("✅ [知识图谱引擎] 引擎创建成功")
+	return engine, nil
 }
 
 // convertToKnowledgeGraph 转换LLM分析结果为Neo4j概念和关系 - 规则解析方式
@@ -6581,4 +6695,72 @@ func (s *ContextService) filterLowQualityRelationships(relationships []*Knowledg
 	}
 
 	return filtered
+}
+
+// storeEntityVectorsFromAnalysis 从分析结果中存储实体向量
+// 这是知识图谱+向量混合检索优化的核心存储函数
+// 🔥 增加 knowledgeIDs 参数，用于填充 Neo4jNodeID，实现图谱+向量混合检索
+func (s *ContextService) storeEntityVectorsFromAnalysis(ctx context.Context, analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string, knowledgeIDs KnowledgeNodeIDs) error {
+	log.Printf("🔄 [实体向量存储] 开始从分析结果中提取并存储实体向量（使用预生成UUID，映射数: %d）", len(knowledgeIDs.EntityNameToUUID))
+
+	if s.entityVectorService == nil {
+		log.Printf("⚠️ [实体向量存储] 实体向量服务未初始化")
+		return fmt.Errorf("实体向量服务未初始化")
+	}
+
+	// 检查是否有LLM抽取的知识图谱信息
+	if analysisResult.KnowledgeGraphExtraction == nil || len(analysisResult.KnowledgeGraphExtraction.Entities) == 0 {
+		log.Printf("⚠️ [实体向量存储] LLM未提供知识图谱抽取结果，跳过实体向量存储")
+		return nil
+	}
+
+	// 转换LLM抽取的实体为ExtractedEntity格式，🔥 同时填充 Neo4jNodeID
+	entities := make([]ExtractedEntity, 0, len(analysisResult.KnowledgeGraphExtraction.Entities))
+	for _, llmEntity := range analysisResult.KnowledgeGraphExtraction.Entities {
+		// 🔥 从预生成映射中获取Neo4j节点ID
+		neo4jNodeID := ""
+		if nodeID, exists := knowledgeIDs.EntityNameToUUID[llmEntity.Title]; exists {
+			neo4jNodeID = nodeID
+			log.Printf("🔗 [实体向量存储] 实体 %s 关联Neo4j节点ID: %s", llmEntity.Title, neo4jNodeID)
+		} else {
+			log.Printf("⚠️ [实体向量存储] 实体 %s 在预生成映射中不存在", llmEntity.Title)
+		}
+
+		entities = append(entities, ExtractedEntity{
+			Name:        llmEntity.Title,
+			Type:        llmEntity.Type,
+			Description: llmEntity.Description,
+			Confidence:  llmEntity.Confidence,
+			Neo4jNodeID: neo4jNodeID, // 🔥 填充Neo4j节点ID
+		})
+	}
+
+	log.Printf("📊 [实体向量存储] 提取到 %d 个实体，其中 %d 个有Neo4jNodeID", len(entities), countEntitiesWithNeo4jID(entities))
+
+	// 获取用户ID
+	userID := req.UserID
+	if userID == "" {
+		userID = req.SessionID // 降级使用sessionID
+	}
+
+	// 调用实体向量服务存储
+	err := s.entityVectorService.StoreEntityVectors(ctx, entities, memoryID, userID)
+	if err != nil {
+		log.Printf("❌ [实体向量存储] 存储失败: %v", err)
+		return err
+	}
+
+	log.Printf("✅ [实体向量存储] 实体向量存储完成")
+	return nil
+}
+
+// countEntitiesWithNeo4jID 统计有Neo4jNodeID的实体数量
+func countEntitiesWithNeo4jID(entities []ExtractedEntity) int {
+	count := 0
+	for _, e := range entities {
+		if e.Neo4jNodeID != "" {
+			count++
+		}
+	}
+	return count
 }

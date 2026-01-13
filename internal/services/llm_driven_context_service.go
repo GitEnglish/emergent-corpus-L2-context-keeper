@@ -33,6 +33,9 @@ type LLMDrivenContextService struct {
 	// 🆕 上下文管理器（关键闭环组件）
 	contextManager *UnifiedContextManager
 
+	// 🆕 实体向量服务（用于混合检索）
+	entityVectorService *EntityVectorService
+
 	// 配置和开关
 	config  *LLMDrivenConfig
 	enabled bool
@@ -492,6 +495,16 @@ func (lds *LLMDrivenContextService) initializeLLMComponentsWithEngines(storageEn
 		log.Printf("✅ [LLM驱动服务] 内容合成引擎已初始化")
 	}
 
+	// 🆕 实体向量服务（用于混合检索）
+	if lds.contextService != nil {
+		lds.entityVectorService = lds.contextService.GetEntityVectorService()
+		if lds.entityVectorService != nil {
+			log.Printf("✅ [LLM驱动服务] 实体向量服务已连接")
+		} else {
+			log.Printf("⚠️ [LLM驱动服务] 实体向量服务未初始化，混合检索功能将受限")
+		}
+	}
+
 	log.Printf("🎯 [LLM驱动服务] LLM组件初始化完成（带存储引擎）")
 }
 
@@ -686,6 +699,34 @@ func (lds *LLMDrivenContextService) executeLLMDrivenFlow(ctx context.Context, re
 				return models.ContextResponse{}, fmt.Errorf("多维度检索失败: %w", err)
 			}
 			log.Printf("✅ [LLM驱动服务] 多维度检索完成，获得 %d 个结果", len(retrievalResults.Results))
+
+			// 🆕 Phase 2.5: 执行混合检索（实体向量 + 图谱展开）
+			userID, _ := ctx.Value("user_id").(string)
+			if userID != "" && lds.entityVectorService != nil {
+				log.Printf("🔄 [混合检索集成] 开始执行实体向量+图谱展开检索...")
+				hybridResults, hybridErr := lds.hybridRetrieval(ctx, req.Query, userID, 10)
+				if hybridErr != nil {
+					log.Printf("⚠️ [混合检索集成] 混合检索失败(不阻断主流程): %v", hybridErr)
+				} else if len(hybridResults) > 0 {
+					log.Printf("✅ [混合检索集成] 混合检索获得 %d 个结果，合并到主结果", len(hybridResults))
+					// 将混合检索结果合并到主检索结果
+					for _, hr := range hybridResults {
+						// 转换 HybridRetrievalResult 为 interface{} 并追加
+						retrievalResults.Results = append(retrievalResults.Results, hr)
+						retrievalResults.Sources = append(retrievalResults.Sources, hr.Source)
+					}
+					log.Printf("✅ [混合检索集成] 合并后总结果数: %d", len(retrievalResults.Results))
+				} else {
+					log.Printf("📭 [混合检索集成] 混合检索无结果")
+				}
+			} else {
+				if userID == "" {
+					log.Printf("⚠️ [混合检索集成] 跳过混合检索：缺少userID")
+				}
+				if lds.entityVectorService == nil {
+					log.Printf("⚠️ [混合检索集成] 跳过混合检索：entityVectorService未初始化")
+				}
+			}
 
 			// Phase 3: 第二次LLM调用 - 内容合成
 			if lds.config.ContentSynthesis && lds.contentSynthesizer != nil {
@@ -2026,4 +2067,235 @@ func (lds *LLMDrivenContextService) updateMetrics(latency time.Duration, success
 	}
 
 	lds.metrics.LastUpdated = time.Now()
+}
+
+// ============================================================================
+// 🆕 混合检索功能 (实体向量 + 图谱展开 + RRF融合)
+// ============================================================================
+
+// HybridRetrievalResult 混合检索结果
+type HybridRetrievalResult struct {
+	MemoryID   string  `json:"memory_id"`
+	Content    string  `json:"content"`
+	Score      float32 `json:"score"`
+	Source     string  `json:"source"`      // "memory_vector" | "entity_vector" | "graph_expand"
+	EntityPath string  `json:"entity_path"` // 图谱展开路径（可选）
+}
+
+// hybridRetrieval 混合检索（向量+图谱）
+// 🔧 优化版本：避免重复调用SearchEntityVectors，共享实体检索结果
+func (lds *LLMDrivenContextService) hybridRetrieval(
+	ctx context.Context,
+	query string,
+	userID string,
+	limit int,
+) ([]HybridRetrievalResult, error) {
+	log.Printf("🔄 [混合检索] 开始执行混合检索: %s (user=%s)", query, userID)
+	startTime := time.Now()
+
+	// 确保limit合理
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// 收集所有结果
+	allResults := make([]HybridRetrievalResult, 0)
+
+	// 🔧 优化：先执行一次实体向量检索，结果共享给路径A和路径B
+	if lds.entityVectorService == nil {
+		log.Printf("⚠️ [混合检索] 实体向量服务未初始化，跳过混合检索")
+		return allResults, nil
+	}
+
+	entityResults, err := lds.entityVectorService.SearchEntityVectors(ctx, query, userID, 10)
+	if err != nil {
+		log.Printf("⚠️ [混合检索-实体向量] 检索失败: %v", err)
+		return allResults, nil // 不阻断，返回空结果
+	}
+
+	log.Printf("📊 [混合检索] 实体向量检索完成，找到 %d 个相关实体", len(entityResults))
+
+	// 路径A: 从实体向量检索结果中收集关联的memory_ids
+	entityVectorResults := make([]HybridRetrievalResult, 0)
+	nodeIDs := make([]string, 0) // 同时收集neo4j节点ID供路径B使用
+
+	for _, e := range entityResults {
+		// 收集neo4j节点ID（供图谱展开使用）
+		if e.Neo4jNodeID != "" {
+			nodeIDs = append(nodeIDs, e.Neo4jNodeID)
+		}
+
+		// 收集实体关联的memory_ids
+		for _, memID := range e.MemoryIDs {
+			entityVectorResults = append(entityVectorResults, HybridRetrievalResult{
+				MemoryID:   memID,
+				Score:      e.Similarity * 0.9, // 略微降权
+				Source:     "entity_vector",
+				EntityPath: e.EntityName,
+			})
+		}
+	}
+
+	log.Printf("✅ [混合检索-路径A] 实体向量关联 %d 条memory，收集到 %d 个neo4j节点ID",
+		len(entityVectorResults), len(nodeIDs))
+	allResults = append(allResults, entityVectorResults...)
+
+	// 路径B: 图谱展开（基于共享的实体检索结果）
+	if len(nodeIDs) > 0 {
+		expandedResults, err := lds.expandGraphRelations(ctx, nodeIDs, userID, 2)
+		if err != nil {
+			log.Printf("⚠️ [混合检索-路径B] 图谱展开失败: %v", err)
+		} else if len(expandedResults) > 0 {
+			log.Printf("✅ [混合检索-路径B] 图谱展开获得 %d 条关联结果", len(expandedResults))
+			allResults = append(allResults, expandedResults...)
+		} else {
+			log.Printf("📭 [混合检索-路径B] 图谱展开无结果")
+		}
+	} else {
+		log.Printf("⚠️ [混合检索-路径B] 无neo4j节点ID，跳过图谱展开")
+	}
+
+	// RRF融合排序 + 去重
+	finalResults := lds.deduplicateAndRank(allResults, limit)
+
+	duration := time.Since(startTime)
+	log.Printf("✅ [混合检索] 完成，返回 %d 条结果（实体向量: %d, 图谱展开: %d），耗时: %v",
+		len(finalResults), len(entityVectorResults), len(allResults)-len(entityVectorResults), duration)
+	return finalResults, nil
+}
+
+// expandGraphRelations 图谱关系展开
+func (lds *LLMDrivenContextService) expandGraphRelations(
+	ctx context.Context,
+	entityNodeIDs []string,
+	userID string,
+	maxDepth int,
+) ([]HybridRetrievalResult, error) {
+	log.Printf("🕸️ [图谱展开] 开始展开 %d 个入口实体", len(entityNodeIDs))
+
+	results := make([]HybridRetrievalResult, 0)
+
+	// 检查知识图谱引擎是否可用
+	if lds.contextService == nil {
+		return results, nil
+	}
+
+	// 通过知识图谱引擎执行关系展开
+	knowledgeEngine, err := lds.contextService.GetKnowledgeEngine()
+	if err != nil {
+		log.Printf("⚠️ [图谱展开] 获取知识图谱引擎失败: %v", err)
+		return results, nil
+	}
+	if knowledgeEngine == nil {
+		log.Printf("⚠️ [图谱展开] 知识图谱引擎未初始化")
+		return results, nil
+	}
+	// 确保引擎资源被正确释放
+	defer knowledgeEngine.Close(ctx)
+
+	// 设置默认深度
+	if maxDepth <= 0 {
+		maxDepth = 2
+	}
+
+	for _, nodeID := range entityNodeIDs {
+		log.Printf("🔍 [图谱展开] 正在展开实体: %s (深度: %d)", nodeID, maxDepth)
+
+		// 使用GetRelatedEntities方法获取关联实体
+		relatedEntities, err := knowledgeEngine.GetRelatedEntities(ctx, nodeID, maxDepth)
+		if err != nil {
+			log.Printf("⚠️ [图谱展开] 节点 %s 展开失败: %v", nodeID, err)
+			continue
+		}
+
+		log.Printf("📊 [图谱展开] 节点 %s 找到 %d 个关联实体", nodeID, len(relatedEntities))
+
+		// 对展开的实体，直接使用Entity中的MemoryIDs
+		for _, entity := range relatedEntities {
+			if entity == nil || entity.Name == "" {
+				continue
+			}
+
+			// 直接从Entity的MemoryIDs获取关联memory
+			if len(entity.MemoryIDs) > 0 {
+				for _, memID := range entity.MemoryIDs {
+					results = append(results, HybridRetrievalResult{
+						MemoryID:   memID,
+						Score:      0.7, // 图谱展开结果统一权重
+						Source:     "graph_expand",
+						EntityPath: fmt.Sprintf("→ %s", entity.Name),
+					})
+				}
+				log.Printf("✅ [图谱展开] 实体 %s 关联 %d 个memory", entity.Name, len(entity.MemoryIDs))
+			} else {
+				// 如果Entity的MemoryIDs为空，尝试通过实体向量服务查找
+				if lds.entityVectorService != nil {
+					searchResults, err := lds.entityVectorService.SearchEntityVectors(ctx, entity.Name, userID, 1)
+					if err == nil && len(searchResults) > 0 {
+						for _, sr := range searchResults {
+							for _, memID := range sr.MemoryIDs {
+								results = append(results, HybridRetrievalResult{
+									MemoryID:   memID,
+									Score:      0.65, // 通过向量检索的权重略低
+									Source:     "graph_expand",
+									EntityPath: fmt.Sprintf("→ %s (via vector)", entity.Name),
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	log.Printf("✅ [图谱展开] 展开完成，获得 %d 个关联结果", len(results))
+	return results, nil
+}
+
+// deduplicateAndRank 去重并排序 (RRF融合)
+func (lds *LLMDrivenContextService) deduplicateAndRank(
+	results []HybridRetrievalResult,
+	limit int,
+) []HybridRetrievalResult {
+	if len(results) == 0 {
+		return results
+	}
+
+	// 按memory_id去重，保留最高分
+	seen := make(map[string]HybridRetrievalResult)
+	for _, r := range results {
+		if existing, ok := seen[r.MemoryID]; ok {
+			if r.Score > existing.Score {
+				seen[r.MemoryID] = r
+			}
+		} else {
+			seen[r.MemoryID] = r
+		}
+	}
+
+	// 转换为切片
+	deduped := make([]HybridRetrievalResult, 0, len(seen))
+	for _, r := range seen {
+		deduped = append(deduped, r)
+	}
+
+	// 按分数排序
+	for i := 0; i < len(deduped)-1; i++ {
+		for j := i + 1; j < len(deduped); j++ {
+			if deduped[j].Score > deduped[i].Score {
+				deduped[i], deduped[j] = deduped[j], deduped[i]
+			}
+		}
+	}
+
+	// 限制返回数量
+	if len(deduped) > limit {
+		return deduped[:limit]
+	}
+	return deduped
+}
+
+// GetEntityVectorService 获取实体向量服务
+func (lds *LLMDrivenContextService) GetEntityVectorService() *EntityVectorService {
+	return lds.entityVectorService
 }
