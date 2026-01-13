@@ -95,6 +95,18 @@ func (engine *Neo4jEngine) initializeGraph(ctx context.Context) error {
 
 		// 用户节点唯一性约束
 		"CREATE CONSTRAINT user_id_unique IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
+
+		// 🆕 新增：Entity节点UUID唯一性约束
+		"CREATE CONSTRAINT entity_id_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
+
+		// 🆕 新增：Event节点UUID唯一性约束
+		"CREATE CONSTRAINT event_id_unique IF NOT EXISTS FOR (ev:Event) REQUIRE ev.id IS UNIQUE",
+
+		// 🆕 新增：Solution节点UUID唯一性约束
+		"CREATE CONSTRAINT solution_id_unique IF NOT EXISTS FOR (s:Solution) REQUIRE s.id IS UNIQUE",
+
+		// 🆕 新增：Feature节点UUID唯一性约束
+		"CREATE CONSTRAINT feature_id_unique IF NOT EXISTS FOR (f:Feature) REQUIRE f.id IS UNIQUE",
 	}
 
 	for _, constraint := range constraints {
@@ -111,6 +123,27 @@ func (engine *Neo4jEngine) initializeGraph(ctx context.Context) error {
 		"CREATE INDEX project_domain_idx IF NOT EXISTS FOR (p:Project) ON (p.domain)",
 		"CREATE FULLTEXT INDEX concept_search_idx IF NOT EXISTS FOR (c:Concept) ON EACH [c.name, c.description, c.keywords]",
 		"CREATE FULLTEXT INDEX technology_search_idx IF NOT EXISTS FOR (t:Technology) ON EACH [t.name, t.description, t.keywords]",
+
+		// 🆕 新增：Entity索引（按类型、工作空间查询）
+		"CREATE INDEX entity_type_idx IF NOT EXISTS FOR (e:Entity) ON (e.type)",
+		"CREATE INDEX entity_workspace_idx IF NOT EXISTS FOR (e:Entity) ON (e.workspace)",
+		"CREATE INDEX entity_name_idx IF NOT EXISTS FOR (e:Entity) ON (e.name)",
+
+		// 🆕 新增：Event索引（按类型、工作空间查询）
+		"CREATE INDEX event_type_idx IF NOT EXISTS FOR (ev:Event) ON (ev.type)",
+		"CREATE INDEX event_workspace_idx IF NOT EXISTS FOR (ev:Event) ON (ev.workspace)",
+
+		// 🆕 新增：Solution索引（按类型、工作空间查询）
+		"CREATE INDEX solution_type_idx IF NOT EXISTS FOR (s:Solution) ON (s.type)",
+		"CREATE INDEX solution_workspace_idx IF NOT EXISTS FOR (s:Solution) ON (s.workspace)",
+
+		// 🆕 新增：Feature索引
+		"CREATE INDEX feature_workspace_idx IF NOT EXISTS FOR (f:Feature) ON (f.workspace)",
+
+		// 🆕 新增：全文搜索索引
+		"CREATE FULLTEXT INDEX entity_search_idx IF NOT EXISTS FOR (e:Entity) ON EACH [e.name, e.description]",
+		"CREATE FULLTEXT INDEX event_search_idx IF NOT EXISTS FOR (ev:Event) ON EACH [ev.name, ev.description]",
+		"CREATE FULLTEXT INDEX solution_search_idx IF NOT EXISTS FOR (s:Solution) ON EACH [s.name, s.description]",
 	}
 
 	for _, index := range indexes {
@@ -346,9 +379,9 @@ func (engine *Neo4jEngine) buildKnowledgeQuery(query *KnowledgeQuery) (string, m
 		parameters["limit"] = query.Limit
 
 	default:
-		// 默认全文搜索
+		// 默认全文搜索 - 使用entity_search_idx（Entity标签是实际存储的节点类型）
 		cypherQuery = `
-			CALL db.index.fulltext.queryNodes('concept_search_idx', $search_text)
+			CALL db.index.fulltext.queryNodes('entity_search_idx', $search_text)
 			YIELD node, score
 			WHERE score >= $min_score
 			RETURN node, null as relationship, score
@@ -438,4 +471,591 @@ func (engine *Neo4jEngine) HealthCheck(ctx context.Context) error {
 // Close 关闭连接
 func (engine *Neo4jEngine) Close(ctx context.Context) error {
 	return engine.driver.Close(ctx)
+}
+
+// ==================== 🆕 新增：知识节点CRUD方法 ====================
+
+// UpsertEntity 创建或更新Entity节点（基于UUID MERGE）
+func (engine *Neo4jEngine) UpsertEntity(ctx context.Context, entity *Entity) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MERGE (e:Entity {id: $id})
+		ON CREATE SET e.created_at = datetime(), e.memory_ids = $memory_ids
+		ON MATCH SET e.memory_ids =
+		    CASE WHEN $memory_id IN coalesce(e.memory_ids, []) THEN e.memory_ids
+		         ELSE coalesce(e.memory_ids, []) + $memory_id END
+		SET e.name = $name,
+		    e.type = $type,
+		    e.description = $description,
+		    e.workspace = $workspace,
+		    e.updated_at = datetime()
+		RETURN e.id as id`
+
+	memoryID := ""
+	if len(entity.MemoryIDs) > 0 {
+		memoryID = entity.MemoryIDs[0]
+	}
+
+	parameters := map[string]interface{}{
+		"id":          entity.ID,
+		"name":        entity.Name,
+		"type":        entity.Type,
+		"description": entity.Description,
+		"workspace":   entity.Workspace,
+		"memory_ids":  entity.MemoryIDs,
+		"memory_id":   memoryID,
+	}
+
+	_, err := session.Run(ctx, query, parameters)
+	return err
+}
+
+// UpsertEvent 创建或更新Event节点
+func (engine *Neo4jEngine) UpsertEvent(ctx context.Context, event *Event) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MERGE (ev:Event {id: $id})
+		ON CREATE SET ev.created_at = datetime(), ev.memory_ids = $memory_ids
+		ON MATCH SET ev.memory_ids =
+		    CASE WHEN $memory_id IN coalesce(ev.memory_ids, []) THEN ev.memory_ids
+		         ELSE coalesce(ev.memory_ids, []) + $memory_id END
+		SET ev.name = $name,
+		    ev.type = $type,
+		    ev.description = $description,
+		    ev.workspace = $workspace,
+		    ev.updated_at = datetime()
+		RETURN ev.id as id`
+
+	memoryID := ""
+	if len(event.MemoryIDs) > 0 {
+		memoryID = event.MemoryIDs[0]
+	}
+
+	parameters := map[string]interface{}{
+		"id":          event.ID,
+		"name":        event.Name,
+		"type":        event.Type,
+		"description": event.Description,
+		"workspace":   event.Workspace,
+		"memory_ids":  event.MemoryIDs,
+		"memory_id":   memoryID,
+	}
+
+	_, err := session.Run(ctx, query, parameters)
+	return err
+}
+
+// UpsertSolution 创建或更新Solution节点
+func (engine *Neo4jEngine) UpsertSolution(ctx context.Context, solution *Solution) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MERGE (s:Solution {id: $id})
+		ON CREATE SET s.created_at = datetime(), s.memory_ids = $memory_ids
+		ON MATCH SET s.memory_ids =
+		    CASE WHEN $memory_id IN coalesce(s.memory_ids, []) THEN s.memory_ids
+		         ELSE coalesce(s.memory_ids, []) + $memory_id END
+		SET s.name = $name,
+		    s.type = $type,
+		    s.description = $description,
+		    s.workspace = $workspace,
+		    s.updated_at = datetime()
+		RETURN s.id as id`
+
+	memoryID := ""
+	if len(solution.MemoryIDs) > 0 {
+		memoryID = solution.MemoryIDs[0]
+	}
+
+	parameters := map[string]interface{}{
+		"id":          solution.ID,
+		"name":        solution.Name,
+		"type":        solution.Type,
+		"description": solution.Description,
+		"workspace":   solution.Workspace,
+		"memory_ids":  solution.MemoryIDs,
+		"memory_id":   memoryID,
+	}
+
+	_, err := session.Run(ctx, query, parameters)
+	return err
+}
+
+// CreateRelation 创建关系
+func (engine *Neo4jEngine) CreateRelation(ctx context.Context, relation *Relation) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	// 使用动态关系类型
+	query := fmt.Sprintf(`
+		MATCH (source {id: $source_id})
+		MATCH (target {id: $target_id})
+		MERGE (source)-[r:%s]->(target)
+		SET r.weight = $weight,
+		    r.created_at = datetime()
+		RETURN type(r) as rel_type`, relation.Type)
+
+	parameters := map[string]interface{}{
+		"source_id": relation.SourceID,
+		"target_id": relation.TargetID,
+		"weight":    relation.Weight,
+	}
+
+	_, err := session.Run(ctx, query, parameters)
+	return err
+}
+
+// AppendMemoryIDToEntity 追加MemoryID到Entity
+func (engine *Neo4jEngine) AppendMemoryIDToEntity(ctx context.Context, entityID, memoryID string) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MATCH (e:Entity {id: $entity_id})
+		SET e.memory_ids =
+		    CASE WHEN $memory_id IN e.memory_ids THEN e.memory_ids
+		         ELSE e.memory_ids + $memory_id END,
+		    e.updated_at = datetime()
+		RETURN e.id as id`
+
+	parameters := map[string]interface{}{
+		"entity_id": entityID,
+		"memory_id": memoryID,
+	}
+
+	_, err := session.Run(ctx, query, parameters)
+	return err
+}
+
+// GetEntityByID 根据UUID获取Entity
+func (engine *Neo4jEngine) GetEntityByID(ctx context.Context, entityID string) (*Entity, error) {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MATCH (e:Entity {id: $id})
+		RETURN e.id as id, e.name as name, e.type as type,
+		       e.description as description, e.workspace as workspace,
+		       e.memory_ids as memory_ids`
+
+	result, err := session.Run(ctx, query, map[string]interface{}{"id": entityID})
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Next(ctx) {
+		record := result.Record()
+		entity := &Entity{
+			ID:          getStringProp(record.AsMap(), "id"),
+			Name:        getStringProp(record.AsMap(), "name"),
+			Type:        getStringProp(record.AsMap(), "type"),
+			Description: getStringProp(record.AsMap(), "description"),
+			Workspace:   getStringProp(record.AsMap(), "workspace"),
+			MemoryIDs:   getStringArrayProp(record.AsMap(), "memory_ids"),
+		}
+		return entity, nil
+	}
+	return nil, nil
+}
+
+// GetRelatedEntities 获取与指定Entity相关的实体
+func (engine *Neo4jEngine) GetRelatedEntities(ctx context.Context, entityID string, depth int) ([]*Entity, error) {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	if depth <= 0 {
+		depth = 1
+	}
+	if depth > 3 {
+		depth = 3
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (start:Entity {id: $id})-[*1..%d]-(related:Entity)
+		WHERE related.id <> $id
+		RETURN DISTINCT related.id as id, related.name as name,
+		       related.type as type, related.description as description,
+		       related.workspace as workspace, related.memory_ids as memory_ids
+		LIMIT 50`, depth)
+
+	result, err := session.Run(ctx, query, map[string]interface{}{"id": entityID})
+	if err != nil {
+		return nil, err
+	}
+
+	var entities []*Entity
+	for result.Next(ctx) {
+		record := result.Record()
+		entity := &Entity{
+			ID:          getStringProp(record.AsMap(), "id"),
+			Name:        getStringProp(record.AsMap(), "name"),
+			Type:        getStringProp(record.AsMap(), "type"),
+			Description: getStringProp(record.AsMap(), "description"),
+			Workspace:   getStringProp(record.AsMap(), "workspace"),
+			MemoryIDs:   getStringArrayProp(record.AsMap(), "memory_ids"),
+		}
+		entities = append(entities, entity)
+	}
+	return entities, result.Err()
+}
+
+// GetMemoryIDsByEntityIDs 根据Entity UUID列表获取关联的MemoryID列表
+func (engine *Neo4jEngine) GetMemoryIDsByEntityIDs(ctx context.Context, entityIDs []string) ([]string, error) {
+	if len(entityIDs) == 0 {
+		return []string{}, nil
+	}
+
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MATCH (e:Entity)
+		WHERE e.id IN $entity_ids
+		UNWIND e.memory_ids as memory_id
+		RETURN DISTINCT memory_id`
+
+	result, err := session.Run(ctx, query, map[string]interface{}{"entity_ids": entityIDs})
+	if err != nil {
+		return nil, err
+	}
+
+	var memoryIDs []string
+	for result.Next(ctx) {
+		if memoryID, ok := result.Record().Get("memory_id"); ok {
+			if str, ok := memoryID.(string); ok {
+				memoryIDs = append(memoryIDs, str)
+			}
+		}
+	}
+	return memoryIDs, result.Err()
+}
+
+// SearchEntitiesByName 根据名称搜索Entity
+func (engine *Neo4jEngine) SearchEntitiesByName(ctx context.Context, name, workspace string, limit int) ([]*Entity, error) {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	if limit <= 0 {
+		limit = 20
+	}
+
+	query := `
+		CALL db.index.fulltext.queryNodes('entity_search_idx', $search_text)
+		YIELD node, score
+		WHERE node.workspace = $workspace
+		RETURN node.id as id, node.name as name, node.type as type,
+		       node.description as description, node.workspace as workspace,
+		       node.memory_ids as memory_ids, score
+		ORDER BY score DESC
+		LIMIT $limit`
+
+	parameters := map[string]interface{}{
+		"search_text": name,
+		"workspace":   workspace,
+		"limit":       limit,
+	}
+
+	result, err := session.Run(ctx, query, parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	var entities []*Entity
+	for result.Next(ctx) {
+		record := result.Record()
+		entity := &Entity{
+			ID:          getStringProp(record.AsMap(), "id"),
+			Name:        getStringProp(record.AsMap(), "name"),
+			Type:        getStringProp(record.AsMap(), "type"),
+			Description: getStringProp(record.AsMap(), "description"),
+			Workspace:   getStringProp(record.AsMap(), "workspace"),
+			MemoryIDs:   getStringArrayProp(record.AsMap(), "memory_ids"),
+		}
+		entities = append(entities, entity)
+	}
+	return entities, result.Err()
+}
+
+// BatchUpsertEntities 批量Upsert Entity
+func (engine *Neo4jEngine) BatchUpsertEntities(ctx context.Context, entities []*Entity, memoryID string) error {
+	if len(entities) == 0 {
+		return nil
+	}
+
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	for _, entity := range entities {
+		entity.MemoryIDs = []string{memoryID}
+		if err := engine.UpsertEntity(ctx, entity); err != nil {
+			log.Printf("⚠️ Upsert Entity失败: %s, error: %v", entity.Name, err)
+			// 继续处理其他Entity
+		}
+	}
+	return nil
+}
+
+// BatchUpsertEvents 批量Upsert Event
+func (engine *Neo4jEngine) BatchUpsertEvents(ctx context.Context, events []*Event, memoryID string) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	for _, event := range events {
+		event.MemoryIDs = []string{memoryID}
+		if err := engine.UpsertEvent(ctx, event); err != nil {
+			log.Printf("⚠️ Upsert Event失败: %s, error: %v", event.Name, err)
+		}
+	}
+	return nil
+}
+
+// BatchUpsertSolutions 批量Upsert Solution
+func (engine *Neo4jEngine) BatchUpsertSolutions(ctx context.Context, solutions []*Solution, memoryID string) error {
+	if len(solutions) == 0 {
+		return nil
+	}
+
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	for _, solution := range solutions {
+		solution.MemoryIDs = []string{memoryID}
+		if err := engine.UpsertSolution(ctx, solution); err != nil {
+			log.Printf("⚠️ Upsert Solution失败: %s, error: %v", solution.Name, err)
+		}
+	}
+	return nil
+}
+
+// ==================== 🆕 新增：AppendMemoryID方法（Event/Solution） ====================
+
+// AppendMemoryIDToEvent 追加MemoryID到Event节点（MERGE by UUID，原子操作）
+func (engine *Neo4jEngine) AppendMemoryIDToEvent(ctx context.Context, event *Event, memoryID string) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MERGE (ev:Event {id: $id})
+		ON CREATE SET
+			ev.name = $name,
+			ev.type = $type,
+			ev.description = $description,
+			ev.workspace = $workspace,
+			ev.memory_ids = [$memoryID],
+			ev.created_at = datetime(),
+			ev.updated_at = datetime()
+		ON MATCH SET ev.memory_ids = CASE
+			WHEN $memoryID IN ev.memory_ids THEN ev.memory_ids
+			ELSE ev.memory_ids + [$memoryID]
+		END,
+		ev.updated_at = datetime()
+	`
+	_, err := session.Run(ctx, query, map[string]interface{}{
+		"id":          event.ID,
+		"name":        event.Name,
+		"type":        event.Type,
+		"description": event.Description,
+		"workspace":   event.Workspace,
+		"memoryID":    memoryID,
+	})
+	if err != nil {
+		return fmt.Errorf("append memoryID to event failed: %w", err)
+	}
+	log.Printf("✅ AppendMemoryIDToEvent成功: %s (ID: %s, MemoryID: %s)", event.Name, event.ID, memoryID)
+	return nil
+}
+
+// AppendMemoryIDToSolution 追加MemoryID到Solution节点（MERGE by UUID，原子操作）
+func (engine *Neo4jEngine) AppendMemoryIDToSolution(ctx context.Context, solution *Solution, memoryID string) error {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	query := `
+		MERGE (s:Solution {id: $id})
+		ON CREATE SET
+			s.name = $name,
+			s.type = $type,
+			s.description = $description,
+			s.workspace = $workspace,
+			s.memory_ids = [$memoryID],
+			s.created_at = datetime(),
+			s.updated_at = datetime()
+		ON MATCH SET s.memory_ids = CASE
+			WHEN $memoryID IN s.memory_ids THEN s.memory_ids
+			ELSE s.memory_ids + [$memoryID]
+		END,
+		s.updated_at = datetime()
+	`
+	_, err := session.Run(ctx, query, map[string]interface{}{
+		"id":          solution.ID,
+		"name":        solution.Name,
+		"type":        solution.Type,
+		"description": solution.Description,
+		"workspace":   solution.Workspace,
+		"memoryID":    memoryID,
+	})
+	if err != nil {
+		return fmt.Errorf("append memoryID to solution failed: %w", err)
+	}
+	log.Printf("✅ AppendMemoryIDToSolution成功: %s (ID: %s, MemoryID: %s)", solution.Name, solution.ID, memoryID)
+	return nil
+}
+
+// ==================== 🆕 新增：GetRelated方法（Events/Solutions） ====================
+
+// GetRelatedEvents 获取与指定Event相关的事件（支持多跳遍历）
+func (engine *Neo4jEngine) GetRelatedEvents(ctx context.Context, eventID string, depth int) ([]*Event, error) {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	if depth <= 0 {
+		depth = 1
+	}
+	if depth > 2 {
+		depth = 2 // 限制最大深度为2，防止性能问题
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (start:Event {id: $event_id})
+		MATCH path = (start)-[*1..%d]-(related:Event)
+		WHERE related <> start
+		RETURN DISTINCT related.id AS id, related.name AS name, related.type AS type,
+			   related.description AS description, related.workspace AS workspace,
+			   related.memory_ids AS memory_ids
+	`, depth)
+
+	result, err := session.Run(ctx, query, map[string]interface{}{
+		"event_id": eventID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get related events failed: %w", err)
+	}
+
+	var events []*Event
+	for result.Next(ctx) {
+		record := result.Record()
+		event := &Event{
+			ID:          getStringFromRecord(record, "id"),
+			Name:        getStringFromRecord(record, "name"),
+			Type:        getStringFromRecord(record, "type"),
+			Description: getStringFromRecord(record, "description"),
+			Workspace:   getStringFromRecord(record, "workspace"),
+			MemoryIDs:   getStringSliceFromRecord(record, "memory_ids"),
+		}
+		events = append(events, event)
+	}
+
+	log.Printf("📊 GetRelatedEvents完成: 从%s出发，深度%d，找到%d个相关Event", eventID, depth, len(events))
+	return events, nil
+}
+
+// GetRelatedSolutions 获取与指定问题相关的解决方案
+func (engine *Neo4jEngine) GetRelatedSolutions(ctx context.Context, eventID string) ([]*Solution, error) {
+	session := engine.driver.NewSession(ctx, neo4j.SessionConfig{
+		DatabaseName: engine.config.Database,
+	})
+	defer session.Close(ctx)
+
+	// 查找SOLVES或PREVENTS关系指向该Event的Solution
+	query := `
+		MATCH (s:Solution)-[:SOLVES|PREVENTS]->(ev:Event {id: $event_id})
+		RETURN s.id AS id, s.name AS name, s.type AS type,
+			   s.description AS description, s.workspace AS workspace,
+			   s.memory_ids AS memory_ids
+	`
+
+	result, err := session.Run(ctx, query, map[string]interface{}{
+		"event_id": eventID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get related solutions failed: %w", err)
+	}
+
+	var solutions []*Solution
+	for result.Next(ctx) {
+		record := result.Record()
+		solution := &Solution{
+			ID:          getStringFromRecord(record, "id"),
+			Name:        getStringFromRecord(record, "name"),
+			Type:        getStringFromRecord(record, "type"),
+			Description: getStringFromRecord(record, "description"),
+			Workspace:   getStringFromRecord(record, "workspace"),
+			MemoryIDs:   getStringSliceFromRecord(record, "memory_ids"),
+		}
+		solutions = append(solutions, solution)
+	}
+
+	log.Printf("📊 GetRelatedSolutions完成: Event %s 有%d个相关Solution", eventID, len(solutions))
+	return solutions, nil
+}
+
+// ==================== 辅助函数 ====================
+
+// getStringFromRecord 从记录中安全获取字符串
+func getStringFromRecord(record *neo4j.Record, key string) string {
+	val, ok := record.Get(key)
+	if !ok || val == nil {
+		return ""
+	}
+	if str, ok := val.(string); ok {
+		return str
+	}
+	return ""
+}
+
+// getStringSliceFromRecord 从记录中安全获取字符串切片
+func getStringSliceFromRecord(record *neo4j.Record, key string) []string {
+	val, ok := record.Get(key)
+	if !ok || val == nil {
+		return []string{}
+	}
+	if slice, ok := val.([]interface{}); ok {
+		result := make([]string, 0, len(slice))
+		for _, v := range slice {
+			if str, ok := v.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	}
+	return []string{}
 }

@@ -5,7 +5,105 @@ import (
 	"time"
 )
 
-// Concept 概念节点
+// ==================== 🆕 新增知识模型 v3.1 ====================
+
+// Entity - 通用实体节点
+// 用于表示人员、团队、系统、服务、技术、组件、概念等
+type Entity struct {
+	ID          string    `json:"id"`          // UUID，唯一主键
+	Name        string    `json:"name"`        // 实体名称
+	Type        string    `json:"type"`        // Person|Team|System|Service|Technology|Component|Concept
+	Description string    `json:"description"` // 实体描述
+	Workspace   string    `json:"workspace"`   // 工作空间隔离
+	MemoryIDs   []string  `json:"memory_ids"`  // 关联的Memory列表
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// EntityType 枚举
+const (
+	EntityTypePerson     = "Person"     // 人员
+	EntityTypeTeam       = "Team"       // 团队
+	EntityTypeSystem     = "System"     // 系统
+	EntityTypeService    = "Service"    // 服务
+	EntityTypeTechnology = "Technology" // 技术
+	EntityTypeComponent  = "Component"  // 组件
+	EntityTypeConcept    = "Concept"    // 概念
+)
+
+// Event - 事件/问题节点
+type Event struct {
+	ID          string    `json:"id"`          // UUID，唯一主键
+	Name        string    `json:"name"`        // 事件名称
+	Type        string    `json:"type"`        // Issue|Decision|Task
+	Description string    `json:"description"` // 事件描述
+	Workspace   string    `json:"workspace"`   // 工作空间隔离
+	MemoryIDs   []string  `json:"memory_ids"`  // 关联的Memory列表
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// EventType 枚举
+const (
+	EventTypeIssue    = "Issue"    // 问题
+	EventTypeDecision = "Decision" // 决策
+	EventTypeTask     = "Task"     // 任务
+)
+
+// Solution - 解决方案节点
+type Solution struct {
+	ID          string    `json:"id"`          // UUID，唯一主键
+	Name        string    `json:"name"`        // 方案名称
+	Type        string    `json:"type"`        // combination|method|strategy
+	Description string    `json:"description"` // 方案描述
+	Workspace   string    `json:"workspace"`   // 工作空间隔离
+	MemoryIDs   []string  `json:"memory_ids"`  // 关联的Memory列表
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SolutionType 枚举
+const (
+	SolutionTypeCombination = "combination" // 组合方案
+	SolutionTypeMethod      = "method"      // 方法
+	SolutionTypeStrategy    = "strategy"    // 策略
+)
+
+// Feature - 功能特性节点
+type Feature struct {
+	ID          string    `json:"id"`          // UUID，唯一主键
+	Name        string    `json:"name"`        // 特性名称
+	Description string    `json:"description"` // 特性描述
+	Workspace   string    `json:"workspace"`   // 工作空间隔离
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Relation - 关系（基于UUID关联）
+type Relation struct {
+	SourceID  string    `json:"source_id"` // 源节点UUID
+	TargetID  string    `json:"target_id"` // 目标节点UUID
+	Type      string    `json:"type"`      // 关系类型
+	Weight    float64   `json:"weight"`    // 关系权重 0-1
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// 🆕 新增关系类型常量
+const (
+	RelationMentions   = "MENTIONS"    // Memory提及知识节点
+	RelationRelatesTo  = "RELATES_TO"  // 实体关联
+	RelationCauses     = "CAUSES"      // 导致（Event->Event）
+	RelationSolves     = "SOLVES"      // 解决（Solution->Event）
+	RelationPrevents   = "PREVENTS"    // 预防（Solution->Event）
+	RelationUses       = "USES"        // 使用（Solution->Entity）
+	RelationHasFeature = "HAS_FEATURE" // 拥有特性（Entity->Feature）
+	RelationBelongsTo  = "BELONGS_TO"  // 归属（Entity->Entity）
+	RelationAssignedTo = "ASSIGNED_TO" // 分配给（Event->Entity:Person）
+)
+
+// ==================== 原有模型保留 ====================
+
+// Concept 概念节点（保留向后兼容）
 type Concept struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
@@ -309,10 +407,122 @@ func GetRelationshipDescription(relType string) string {
 		RelationshipExpertIn:       "专家",
 		RelationshipInterestedIn:   "感兴趣",
 		RelationshipWorksOn:        "工作于",
+		// 🆕 新增关系类型描述
+		RelationMentions:   "提及",
+		RelationRelatesTo:  "关联",
+		RelationCauses:     "导致",
+		RelationPrevents:   "预防",
+		RelationUses:       "使用",
+		RelationHasFeature: "具有特性",
+		RelationBelongsTo:  "归属于",
+		RelationAssignedTo: "分配给",
 	}
 
 	if desc, exists := descriptions[relType]; exists {
 		return desc
 	}
 	return "未知关系"
+}
+
+// ==================== 🆕 新增模型验证方法 ====================
+
+// Validate 验证Entity
+func (e *Entity) Validate() error {
+	if e.ID == "" {
+		return fmt.Errorf("Entity ID不能为空")
+	}
+	if e.Name == "" {
+		return fmt.Errorf("Entity名称不能为空")
+	}
+	if e.Type == "" {
+		return fmt.Errorf("Entity类型不能为空")
+	}
+	// 验证类型是否有效
+	validTypes := map[string]bool{
+		EntityTypePerson:     true,
+		EntityTypeTeam:       true,
+		EntityTypeSystem:     true,
+		EntityTypeService:    true,
+		EntityTypeTechnology: true,
+		EntityTypeComponent:  true,
+		EntityTypeConcept:    true,
+	}
+	if !validTypes[e.Type] {
+		return fmt.Errorf("无效的Entity类型: %s", e.Type)
+	}
+	return nil
+}
+
+// Validate 验证Event
+func (ev *Event) Validate() error {
+	if ev.ID == "" {
+		return fmt.Errorf("Event ID不能为空")
+	}
+	if ev.Name == "" {
+		return fmt.Errorf("Event名称不能为空")
+	}
+	if ev.Type == "" {
+		return fmt.Errorf("Event类型不能为空")
+	}
+	// 验证类型是否有效
+	validTypes := map[string]bool{
+		EventTypeIssue:    true,
+		EventTypeDecision: true,
+		EventTypeTask:     true,
+	}
+	if !validTypes[ev.Type] {
+		return fmt.Errorf("无效的Event类型: %s", ev.Type)
+	}
+	return nil
+}
+
+// Validate 验证Solution
+func (s *Solution) Validate() error {
+	if s.ID == "" {
+		return fmt.Errorf("Solution ID不能为空")
+	}
+	if s.Name == "" {
+		return fmt.Errorf("Solution名称不能为空")
+	}
+	if s.Type == "" {
+		return fmt.Errorf("Solution类型不能为空")
+	}
+	// 验证类型是否有效
+	validTypes := map[string]bool{
+		SolutionTypeCombination: true,
+		SolutionTypeMethod:      true,
+		SolutionTypeStrategy:    true,
+	}
+	if !validTypes[s.Type] {
+		return fmt.Errorf("无效的Solution类型: %s", s.Type)
+	}
+	return nil
+}
+
+// Validate 验证Feature
+func (f *Feature) Validate() error {
+	if f.ID == "" {
+		return fmt.Errorf("Feature ID不能为空")
+	}
+	if f.Name == "" {
+		return fmt.Errorf("Feature名称不能为空")
+	}
+	return nil
+}
+
+// Validate 验证Relation
+func (r *Relation) Validate() error {
+	if r.SourceID == "" {
+		return fmt.Errorf("Relation源节点ID不能为空")
+	}
+	if r.TargetID == "" {
+		return fmt.Errorf("Relation目标节点ID不能为空")
+	}
+	if r.Type == "" {
+		return fmt.Errorf("Relation类型不能为空")
+	}
+	if r.Weight < 0 || r.Weight > 1 {
+		return fmt.Errorf("Relation权重必须在0-1之间")
+	}
+	return nil
 }

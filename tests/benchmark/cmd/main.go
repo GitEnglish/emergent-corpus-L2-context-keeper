@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"context-keeper/tests/benchmark"
+	"github.com/contextkeeper/service/tests/benchmark"
 )
 
 func main() {

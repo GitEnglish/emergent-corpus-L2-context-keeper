@@ -2049,7 +2049,7 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 	overallConfidence := analysisResult.ConfidenceAssessment.OverallConfidence
 	log.Printf("📊 [智能存储] 整体置信度: %.2f", overallConfidence)
 
-	// 生成统一的记忆ID
+	// Step 1: 生成统一的记忆ID（预先生成，作为共享ID）
 	memoryID := uuid.New().String()
 
 	// 低置信度：仅记录上下文，不进行长期存储
@@ -2059,6 +2059,12 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 			overallConfidence, contextOnlyThreshold)
 		return s.storeContextOnly(analysisResult, req, memoryID)
 	}
+
+	// Step 2: 🆕 预先提取知识节点UUID（纯内存操作，无IO）
+	// 这样向量存储和知识图谱存储可以完全并行，互不依赖
+	knowledgeIDs := s.extractKnowledgeNodeIDsFromAnalysis(analysisResult, req, memoryID)
+	log.Printf("📊 [智能存储] 预提取知识节点UUID - Entity: %d, Event: %d, Solution: %d",
+		len(knowledgeIDs.EntityIDs), len(knowledgeIDs.EventIDs), len(knowledgeIDs.SolutionIDs))
 
 	// 中高置信度：根据推荐结果选择性存储 - 🔥 并行执行
 	log.Printf("✅ [智能存储] 置信度满足要求，执行并行选择性存储")
@@ -2127,15 +2133,15 @@ func (s *ContextService) executeSmartStorage(ctx context.Context, analysisResult
 		log.Printf("🕸️ [智能存储] 跳过知识图谱存储: %s", analysisResult.StorageRecommendations.KnowledgeGraphStorage.Reason)
 	}
 
-	// 3. 多向量存储 (并行)
+	// 3. 多向量存储 (并行) - 🆕 传入知识节点UUID列表
 	if shouldStoreVector {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			startTime := time.Now()
 
-			log.Printf("🔍 [并行-向量] 执行多向量存储")
-			if err := s.storeMultiVectorData(analysisResult, req, memoryID); err != nil {
+			log.Printf("🔍 [并行-向量] 执行多向量存储（含知识节点UUID关联）")
+			if err := s.storeMultiVectorDataWithKnowledge(analysisResult, req, memoryID, knowledgeIDs); err != nil {
 				log.Printf("❌ [并行-向量] 多向量存储失败: %v, 耗时: %v", err, time.Since(startTime))
 				mutex.Lock()
 				storageErrors = append(storageErrors, fmt.Errorf("多向量存储失败: %w", err))
@@ -2326,6 +2332,159 @@ func (s *ContextService) storeMultiVectorData(analysisResult *models.SmartAnalys
 	}
 
 	log.Printf("🎉 [多向量存储] 多向量数据存储完成，总计 %d 个维度", vectorCount)
+	return nil
+}
+
+// ==================== 🆕 新增：知识节点UUID关联方法 ====================
+
+// KnowledgeNodeIDs 知识节点UUID集合（用于Memory与知识节点双向关联）
+type KnowledgeNodeIDs struct {
+	EntityIDs   []string // Entity的UUID列表
+	EventIDs    []string // Event的UUID列表
+	SolutionIDs []string // Solution的UUID列表
+}
+
+// extractKnowledgeNodeIDsFromAnalysis 从LLM分析结果中预先提取知识节点UUID
+// 这是一个纯内存操作，无IO，用于实现完全并行存储
+func (s *ContextService) extractKnowledgeNodeIDsFromAnalysis(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string) KnowledgeNodeIDs {
+	log.Printf("🔍 [知识节点预提取] 开始从LLM分析结果中提取知识节点UUID")
+
+	ids := KnowledgeNodeIDs{
+		EntityIDs:   []string{},
+		EventIDs:    []string{},
+		SolutionIDs: []string{},
+	}
+
+	// 检查是否有LLM抽取的知识图谱信息
+	if analysisResult.KnowledgeGraphExtraction == nil || len(analysisResult.KnowledgeGraphExtraction.Entities) == 0 {
+		log.Printf("⚠️ [知识节点预提取] LLM未提供知识图谱抽取结果")
+		return ids
+	}
+
+	// 遍历LLM抽取的实体，根据类型分类并生成UUID
+	for _, llmEntity := range analysisResult.KnowledgeGraphExtraction.Entities {
+		entityUUID := uuid.New().String()
+
+		switch strings.ToLower(llmEntity.Type) {
+		case "issue", "problem", "bug", "error":
+			ids.EventIDs = append(ids.EventIDs, entityUUID)
+		case "solution", "fix", "workaround", "method":
+			ids.SolutionIDs = append(ids.SolutionIDs, entityUUID)
+		default:
+			ids.EntityIDs = append(ids.EntityIDs, entityUUID)
+		}
+	}
+
+	log.Printf("✅ [知识节点预提取] 完成 - Entity: %d, Event: %d, Solution: %d",
+		len(ids.EntityIDs), len(ids.EventIDs), len(ids.SolutionIDs))
+	return ids
+}
+
+// storeMultiVectorDataWithKnowledge 存储多向量数据并关联知识节点UUID
+func (s *ContextService) storeMultiVectorDataWithKnowledge(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string, knowledgeIDs KnowledgeNodeIDs) error {
+	log.Printf("🔍 [多向量存储+知识关联] 开始处理多向量数据")
+
+	intentAnalysis := analysisResult.IntentAnalysis
+
+	// 创建基础记忆对象
+	memory := models.NewMemory(req.SessionID, req.Content, req.Priority, req.Metadata)
+	memory.ID = memoryID
+
+	// 设置业务类型和用户ID
+	if req.BizType > 0 {
+		memory.BizType = req.BizType
+	}
+	if req.UserID != "" {
+		memory.UserID = req.UserID
+	}
+
+	// 🆕 关联知识节点UUID
+	memory.EntityIDs = knowledgeIDs.EntityIDs
+	memory.EventIDs = knowledgeIDs.EventIDs
+	memory.SolutionIDs = knowledgeIDs.SolutionIDs
+	log.Printf("🔗 [知识关联] Memory关联 - Entity: %d, Event: %d, Solution: %d",
+		len(memory.EntityIDs), len(memory.EventIDs), len(memory.SolutionIDs))
+
+	// 创建多向量数据对象
+	multiVectorData := &models.MultiVectorData{
+		QualityScore: analysisResult.ConfidenceAssessment,
+		CreatedAt:    time.Now(),
+		Metadata:     make(map[string]interface{}),
+	}
+
+	// 根据启用的维度生成对应的向量
+	enabledDimensions := analysisResult.StorageRecommendations.VectorStorage.EnabledDimensions
+	vectorCount := 0
+
+	for _, dimension := range enabledDimensions {
+		switch dimension {
+		case "core_intent", "core_intent_text", "Core Intent Vector":
+			if intentAnalysis.CoreIntentText != "" {
+				vector, err := s.generateEmbedding(intentAnalysis.CoreIntentText)
+				if err == nil {
+					multiVectorData.CoreIntentVector = vector
+					multiVectorData.CoreIntentText = intentAnalysis.CoreIntentText
+					multiVectorData.CoreIntentWeight = 0.5
+					vectorCount++
+				}
+			}
+		case "domain_context", "domain_context_text", "Domain Context Vector":
+			if intentAnalysis.DomainContextText != "" {
+				vector, err := s.generateEmbedding(intentAnalysis.DomainContextText)
+				if err == nil {
+					multiVectorData.DomainContextVector = vector
+					multiVectorData.DomainContextText = intentAnalysis.DomainContextText
+					multiVectorData.DomainContextWeight = 0.3
+					vectorCount++
+				}
+			}
+		case "scenario", "scenario_text", "Scenario Vector":
+			if intentAnalysis.ScenarioText != "" {
+				vector, err := s.generateEmbedding(intentAnalysis.ScenarioText)
+				if err == nil {
+					multiVectorData.ScenarioVector = vector
+					multiVectorData.ScenarioText = intentAnalysis.ScenarioText
+					multiVectorData.ScenarioWeight = 0.15
+					vectorCount++
+				}
+			}
+		}
+	}
+
+	if vectorCount == 0 {
+		return fmt.Errorf("没有生成任何维度的向量")
+	}
+
+	// 设置多向量数据到记忆对象
+	memory.MultiVectorData = multiVectorData
+
+	// 设置主向量
+	if multiVectorData.CoreIntentVector != nil {
+		memory.Vector = multiVectorData.CoreIntentVector
+	} else if multiVectorData.DomainContextVector != nil {
+		memory.Vector = multiVectorData.DomainContextVector
+	} else if multiVectorData.ScenarioVector != nil {
+		memory.Vector = multiVectorData.ScenarioVector
+	}
+
+	// 在元数据中标记
+	if memory.Metadata == nil {
+		memory.Metadata = make(map[string]interface{})
+	}
+	memory.Metadata["multi_vector"] = true
+	memory.Metadata["vector_count"] = vectorCount
+	memory.Metadata["knowledge_linked"] = true
+	memory.Metadata["entity_count"] = len(knowledgeIDs.EntityIDs)
+	memory.Metadata["event_count"] = len(knowledgeIDs.EventIDs)
+	memory.Metadata["solution_count"] = len(knowledgeIDs.SolutionIDs)
+
+	// 存储到向量数据库
+	if err := s.storeMemory(memory); err != nil {
+		return fmt.Errorf("多向量记忆存储失败: %w", err)
+	}
+
+	log.Printf("🎉 [多向量存储+知识关联] 存储完成，向量维度: %d, 知识节点: %d",
+		vectorCount, len(knowledgeIDs.EntityIDs)+len(knowledgeIDs.EventIDs)+len(knowledgeIDs.SolutionIDs))
 	return nil
 }
 
@@ -2693,47 +2852,262 @@ func (s *ContextService) storeKnowledgeDataToNeo4j(ctx context.Context, analysis
 	return s.storeToRealNeo4j(ctx, knowledgeData, req, memoryID)
 }
 
-// storeToRealNeo4j 存储到真实的Neo4j
+// storeToRealNeo4j 存储到真实的Neo4j（使用新的Entity/Event/Solution模型）
 func (s *ContextService) storeToRealNeo4j(ctx context.Context, knowledgeData map[string]interface{}, req models.StoreContextRequest, memoryID string) error {
-	log.Printf("🔥 [真实Neo4j] 开始连接Neo4j并存储数据")
+	log.Printf("🔥 [真实Neo4j v2] 开始连接Neo4j并存储数据 - 使用新模型")
 
 	// 获取Neo4j配置
 	neo4jConfig := s.getNeo4jConfig()
+	if neo4jConfig == nil {
+		log.Printf("⚠️ [真实Neo4j v2] Neo4j配置为空，跳过存储")
+		return nil
+	}
 
 	// 创建Neo4j引擎
 	knowledgeEngine, err := s.createNeo4jEngine(neo4jConfig)
 	if err != nil {
-		log.Printf("❌ [真实Neo4j] 创建Neo4j引擎失败: %v", err)
+		log.Printf("❌ [真实Neo4j v2] 创建Neo4j引擎失败: %v", err)
 		return fmt.Errorf("创建Neo4j引擎失败: %w", err)
 	}
 	defer knowledgeEngine.Close(ctx)
 
-	// 转换LLM分析结果为Neo4j概念和关系
-	concepts, relationships, err := s.convertToKnowledgeGraph(knowledgeData, req, memoryID)
-	if err != nil {
-		log.Printf("❌ [真实Neo4j] 转换知识图谱失败: %v", err)
-		return fmt.Errorf("转换知识图谱失败: %w", err)
+	// 从knowledgeData中获取LLM分析结果
+	analysisDataRaw, exists := knowledgeData["analysis_data"]
+	if !exists {
+		log.Printf("⚠️ [真实Neo4j v2] 缺少LLM分析结果，跳过存储")
+		return nil
 	}
 
-	// 存储概念到Neo4j
-	for _, concept := range concepts {
-		if err := knowledgeEngine.CreateConcept(ctx, concept); err != nil {
-			log.Printf("❌ [真实Neo4j] 存储概念失败: %v", err)
-			return fmt.Errorf("存储概念失败: %w", err)
+	analysisResult, ok := analysisDataRaw.(*models.SmartAnalysisResult)
+	if !ok {
+		log.Printf("⚠️ [真实Neo4j v2] LLM分析结果格式错误，跳过存储")
+		return nil
+	}
+
+	// 🆕 使用新模型存储：Entity/Event/Solution
+	entities, events, solutions, relations := s.extractKnowledgeNodesFromAnalysis(analysisResult, req, memoryID)
+
+	// 批量存储Entity节点
+	if len(entities) > 0 {
+		if err := knowledgeEngine.BatchUpsertEntities(ctx, entities, memoryID); err != nil {
+			log.Printf("❌ [真实Neo4j v2] 批量存储Entity失败: %v", err)
+			return fmt.Errorf("批量存储Entity失败: %w", err)
+		}
+		log.Printf("✅ [真实Neo4j v2] 批量存储Entity成功: %d个", len(entities))
+	}
+
+	// 批量存储Event节点
+	if len(events) > 0 {
+		if err := knowledgeEngine.BatchUpsertEvents(ctx, events, memoryID); err != nil {
+			log.Printf("❌ [真实Neo4j v2] 批量存储Event失败: %v", err)
+			return fmt.Errorf("批量存储Event失败: %w", err)
+		}
+		log.Printf("✅ [真实Neo4j v2] 批量存储Event成功: %d个", len(events))
+	}
+
+	// 批量存储Solution节点
+	if len(solutions) > 0 {
+		if err := knowledgeEngine.BatchUpsertSolutions(ctx, solutions, memoryID); err != nil {
+			log.Printf("❌ [真实Neo4j v2] 批量存储Solution失败: %v", err)
+			return fmt.Errorf("批量存储Solution失败: %w", err)
+		}
+		log.Printf("✅ [真实Neo4j v2] 批量存储Solution成功: %d个", len(solutions))
+	}
+
+	// 存储关系
+	for _, relation := range relations {
+		if err := knowledgeEngine.CreateRelation(ctx, relation); err != nil {
+			log.Printf("⚠️ [真实Neo4j v2] 存储关系失败(继续): %v", err)
+			// 关系存储失败不阻塞整个流程
 		}
 	}
 
-	// 存储关系到Neo4j
-	for _, relationship := range relationships {
-		if err := knowledgeEngine.CreateRelationship(ctx, relationship); err != nil {
-			log.Printf("❌ [真实Neo4j] 存储关系失败: %v", err)
-			return fmt.Errorf("存储关系失败: %w", err)
-		}
-	}
-
-	log.Printf("✅ [真实Neo4j] 知识图谱存储成功 - 概念: %d, 关系: %d, MemoryID: %s",
-		len(concepts), len(relationships), memoryID)
+	log.Printf("✅ [真实Neo4j v2] 知识图谱存储成功 - Entity: %d, Event: %d, Solution: %d, Relation: %d, MemoryID: %s",
+		len(entities), len(events), len(solutions), len(relations), memoryID)
 	return nil
+}
+
+// extractKnowledgeNodesFromAnalysis 从LLM分析结果中提取知识节点（使用新模型）
+func (s *ContextService) extractKnowledgeNodesFromAnalysis(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID string) ([]*knowledge.Entity, []*knowledge.Event, []*knowledge.Solution, []*knowledge.Relation) {
+	log.Printf("🔍 [知识抽取] 开始从LLM分析结果中提取知识节点")
+
+	var entities []*knowledge.Entity
+	var events []*knowledge.Event
+	var solutions []*knowledge.Solution
+	var relations []*knowledge.Relation
+
+	now := time.Now()
+	workspace := ""
+	if ws, ok := req.Metadata["workspace"].(string); ok && ws != "" {
+		workspace = ws
+	} else {
+		workspace = req.SessionID // 使用sessionID作为工作空间隔离
+	}
+
+	// 🔥 优先使用LLM抽取的知识图谱信息
+	if analysisResult.KnowledgeGraphExtraction != nil && len(analysisResult.KnowledgeGraphExtraction.Entities) > 0 {
+		log.Printf("✅ [知识抽取] 使用LLM抽取的知识图谱信息，实体数: %d", len(analysisResult.KnowledgeGraphExtraction.Entities))
+
+		// 预先生成UUID映射（名称 -> UUID）
+		nameToUUID := make(map[string]string)
+
+		for _, llmEntity := range analysisResult.KnowledgeGraphExtraction.Entities {
+			entityID := uuid.New().String()
+			nameToUUID[llmEntity.Title] = entityID
+
+			// 根据LLM类型分类到不同的节点类型
+			switch strings.ToLower(llmEntity.Type) {
+			case "issue", "problem", "bug", "error":
+				// 映射到Event节点
+				event := &knowledge.Event{
+					ID:          entityID,
+					Name:        llmEntity.Title,
+					Type:        knowledge.EventTypeIssue,
+					Description: llmEntity.Description,
+					Workspace:   workspace,
+					MemoryIDs:   []string{memoryID},
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}
+				events = append(events, event)
+				log.Printf("🎯 [知识抽取] 创建Event: %s (ID: %s)", event.Name, event.ID)
+
+			case "solution", "fix", "workaround", "method":
+				// 映射到Solution节点
+				solution := &knowledge.Solution{
+					ID:          entityID,
+					Name:        llmEntity.Title,
+					Type:        knowledge.SolutionTypeMethod,
+					Description: llmEntity.Description,
+					Workspace:   workspace,
+					MemoryIDs:   []string{memoryID},
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}
+				solutions = append(solutions, solution)
+				log.Printf("🎯 [知识抽取] 创建Solution: %s (ID: %s)", solution.Name, solution.ID)
+
+			default:
+				// 其他类型映射到Entity节点
+				entityType := s.mapLLMTypeToKnowledgeEntityType(llmEntity.Type)
+				entity := &knowledge.Entity{
+					ID:          entityID,
+					Name:        llmEntity.Title,
+					Type:        entityType,
+					Description: llmEntity.Description,
+					Workspace:   workspace,
+					MemoryIDs:   []string{memoryID},
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}
+				entities = append(entities, entity)
+				log.Printf("🎯 [知识抽取] 创建Entity: %s (Type: %s, ID: %s)", entity.Name, entity.Type, entity.ID)
+			}
+		}
+
+		// 处理关系
+		for _, llmRel := range analysisResult.KnowledgeGraphExtraction.Relationships {
+			sourceID, sourceExists := nameToUUID[llmRel.Source]
+			targetID, targetExists := nameToUUID[llmRel.Target]
+
+			if sourceExists && targetExists {
+				relation := &knowledge.Relation{
+					SourceID:  sourceID,
+					TargetID:  targetID,
+					Type:      s.mapLLMRelationTypeToKnowledge(llmRel.RelationType),
+					Weight:    float64(llmRel.Strength) / 10.0, // 将1-10映射到0-1
+					CreatedAt: now,
+				}
+				relations = append(relations, relation)
+				log.Printf("🔗 [知识抽取] 创建Relation: %s -[%s]-> %s", llmRel.Source, relation.Type, llmRel.Target)
+			}
+		}
+	} else {
+		// 降级：使用规则匹配从四维度文本中提取
+		log.Printf("⚠️ [知识抽取] LLM未提供知识图谱抽取结果，降级到规则匹配")
+		entities = s.extractEntitiesFromTextRuleBased(analysisResult, req, memoryID, workspace, now)
+	}
+
+	log.Printf("📊 [知识抽取] 提取完成 - Entity: %d, Event: %d, Solution: %d, Relation: %d",
+		len(entities), len(events), len(solutions), len(relations))
+
+	return entities, events, solutions, relations
+}
+
+// mapLLMTypeToKnowledgeEntityType 将LLM实体类型映射到knowledge.Entity类型
+func (s *ContextService) mapLLMTypeToKnowledgeEntityType(llmType string) string {
+	switch strings.ToLower(llmType) {
+	case "technical", "technology", "tool", "framework":
+		return knowledge.EntityTypeTechnology
+	case "system", "platform":
+		return knowledge.EntityTypeSystem
+	case "service", "api":
+		return knowledge.EntityTypeService
+	case "component", "module":
+		return knowledge.EntityTypeComponent
+	case "person", "user", "developer":
+		return knowledge.EntityTypePerson
+	case "team", "group":
+		return knowledge.EntityTypeTeam
+	default:
+		return knowledge.EntityTypeConcept
+	}
+}
+
+// mapLLMRelationTypeToKnowledge 将LLM关系类型映射到knowledge关系类型
+func (s *ContextService) mapLLMRelationTypeToKnowledge(llmRelType string) string {
+	switch strings.ToUpper(llmRelType) {
+	case "USES", "USE":
+		return knowledge.RelationUses
+	case "SOLVES", "SOLVE", "FIX", "FIXES":
+		return knowledge.RelationSolves
+	case "CAUSES", "CAUSE":
+		return knowledge.RelationCauses
+	case "BELONGS_TO", "BELONGS", "PART_OF":
+		return knowledge.RelationBelongsTo
+	case "PREVENTS", "PREVENT":
+		return knowledge.RelationPrevents
+	case "HAS_FEATURE", "HAS":
+		return knowledge.RelationHasFeature
+	default:
+		return knowledge.RelationRelatesTo
+	}
+}
+
+// extractEntitiesFromTextRuleBased 规则匹配提取Entity（降级方案）
+func (s *ContextService) extractEntitiesFromTextRuleBased(analysisResult *models.SmartAnalysisResult, req models.StoreContextRequest, memoryID, workspace string, now time.Time) []*knowledge.Entity {
+	var entities []*knowledge.Entity
+
+	intentAnalysis := analysisResult.IntentAnalysis
+	allText := intentAnalysis.CoreIntentText + " " + intentAnalysis.DomainContextText + " " + intentAnalysis.ScenarioText
+
+	// 技术关键词匹配
+	technicalKeywords := []string{
+		"Go", "Python", "JavaScript", "Java", "Rust",
+		"Neo4j", "PostgreSQL", "MySQL", "Redis", "MongoDB", "TimescaleDB",
+		"Docker", "Kubernetes", "React", "Vue", "Gin",
+		"API", "微服务", "LLM", "向量数据库",
+	}
+
+	seen := make(map[string]bool)
+	for _, keyword := range technicalKeywords {
+		if strings.Contains(allText, keyword) && !seen[keyword] {
+			seen[keyword] = true
+			entity := &knowledge.Entity{
+				ID:          uuid.New().String(),
+				Name:        keyword,
+				Type:        knowledge.EntityTypeTechnology,
+				Description: fmt.Sprintf("从对话中提取的技术实体: %s", keyword),
+				Workspace:   workspace,
+				MemoryIDs:   []string{memoryID},
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+			entities = append(entities, entity)
+		}
+	}
+
+	return entities
 }
 
 // getNeo4jConfig 获取Neo4j配置

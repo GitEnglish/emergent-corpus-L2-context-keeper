@@ -1394,6 +1394,22 @@ func (v *VearchStore) createDefaultSpaceSchema() *SpaceConfig {
 				"name": "metadata",
 				"type": "string",
 			},
+			// 🆕 新增：知识节点关联字段
+			{
+				"name":  "entity_ids",
+				"type":  "string",
+				"array": true,
+			},
+			{
+				"name":  "event_ids",
+				"type":  "string",
+				"array": true,
+			},
+			{
+				"name":  "solution_ids",
+				"type":  "string",
+				"array": true,
+			},
 			{
 				"name":      "vector",
 				"type":      "vector",
@@ -1512,6 +1528,25 @@ func (v *VearchStore) buildSpaceSchema(config *models.CollectionConfig) *SpaceCo
 		{
 			"name": "metadata",
 			"type": "string",
+		},
+		// 🆕 新增：知识节点关联字段
+		// Entity节点UUID列表（用于关联知识图谱中的实体）
+		{
+			"name":  "entity_ids",
+			"type":  "string",
+			"array": true,
+		},
+		// Event节点UUID列表（用于关联知识图谱中的事件）
+		{
+			"name":  "event_ids",
+			"type":  "string",
+			"array": true,
+		},
+		// Solution节点UUID列表（用于关联知识图谱中的解决方案）
+		{
+			"name":  "solution_ids",
+			"type":  "string",
+			"array": true,
 		},
 		// 向量字段（关键：用于向量搜索）
 		{

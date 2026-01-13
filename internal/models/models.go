@@ -171,6 +171,14 @@ type Memory struct {
 
 	// 🆕 新增多向量字段
 	MultiVectorData *MultiVectorData `json:"multi_vector_data,omitempty"`
+
+	// 🆕 新增：与知识节点的关联（UUID列表）
+	EntityIDs   []string `json:"entity_ids,omitempty"`   // 关联的Entity节点UUID
+	EventIDs    []string `json:"event_ids,omitempty"`    // 关联的Event节点UUID
+	SolutionIDs []string `json:"solution_ids,omitempty"` // 关联的Solution节点UUID
+
+	// 🆕 新增：工作空间标识（用于数据隔离）
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // NewMemory 创建新的记忆实体
