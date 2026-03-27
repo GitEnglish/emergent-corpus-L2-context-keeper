@@ -675,3 +675,191 @@ type MultiDimensionalVectorData struct {
 	CreatedAt time.Time              `json:"created_at"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
+
+// =============================================================================
+// Gluttonous Ingestion Engine - ProjectEntity Fork
+// Generic extensible entity for linguistic/academic content tracking
+// =============================================================================
+
+// ErrantTriad represents the ERRAnT error classification system
+// M: Missing, R: Replacement, U: Addition
+type ErrantTriad string
+
+const (
+	ErrantMissing     ErrantTriad = "M" // Missing - should have been used but wasn't
+	ErrantReplacement ErrantTriad = "R" // Replacement - wrong form used instead of target
+	ErrantAddition    ErrantTriad = "U" // Addition - unnecessary element was added
+)
+
+// Sighting represents a single observation of a linguistic phenomenon
+type Sighting struct {
+	Timestamp     time.Time `json:"timestamp"`
+	LessonContext string    `json:"lesson_context"`
+	SessionID     string    `json:"session_id"`
+	Utterance     string    `json:"utterance,omitempty"`
+	Correction    string    `json:"correction,omitempty"`
+}
+
+// SemanticRelation represents a weighted connection between entities
+type SemanticRelation struct {
+	TargetID           string  `json:"target_id"`
+	RelationType       string  `json:"relation_type"`       // metaphorical, taxonomic, collocational
+	Weight             float64 `json:"weight"`
+	DeductionReasoning string  `json:"deduction_reasoning"`
+	ValidityConfidence float64 `json:"validity_confidence"` // 0.0 - 1.0
+}
+
+// EntityConnection holds semantic relationships
+type EntityConnection struct {
+	Incoming []SemanticRelation `json:"incoming,omitempty"`
+	Outgoing []SemanticRelation `json:"outgoing,omitempty"`
+}
+
+// GhostState tracks visibility and retention (Data Retention layer)
+type GhostState struct {
+	Owned         bool       `json:"owned"`          // true = Active Toolkit, false = Ghost State
+	Status        *string    `json:"status"`         // null, "coaching", "mastered", "archived"
+	FirstSighted  time.Time  `json:"first_sighted"`
+	LastSighted   time.Time  `json:"last_sighted"`
+	SightingCount int        `json:"sighting_count"`
+	Sightings     []Sighting `json:"sightings"`
+}
+
+// MasteryMetrics tracks weighted mastery calculations
+type MasteryMetrics struct {
+	MasteryScore       float64 `json:"mastery_score"`        // 1.0 for Cat 4-13 successes
+	ConfidenceSum      float64 `json:"confidence_sum"`       // Accumulated validity_confidence
+	WeightedMastery    float64 `json:"weighted_mastery"`     // W_final = Σ(Mastery·Confidence)/N
+	SightingsCount     int     `json:"sightings_count"`
+}
+
+// ProjectEntity - THE EXTENSIBILITY ENGINE
+// Fluid schema via Properties map[string]interface{}
+// No recompilation needed for v3.0+ schema evolution
+type ProjectEntity struct {
+	// Identity: Format {strand}_{item}_{number} e.g., "grammar_past-perfect_001"
+	ID   string `json:"id"`
+	Type string `json:"type"` // e.g., "linguistic_phenomenon"
+
+	// THE FORK POINT: Fluid v3.0 Schema
+	// Expected properties:
+	// - "surface_form": what student said/wrote
+	// - "target_form": correct/expected form
+	// - "grammatical_category": tense, aspect, modality
+	// - "semantic_field": domain of meaning
+	// - "errant_triad": "M" | "R" | "U"
+	// - "mastery_category": 4-13
+	// - "pattern_source": "deduced"
+	// - "reasoning_chain": LLM deduction path
+	// - "validity_confidence": 0.0-1.0
+	Properties map[string]interface{} `json:"properties"`
+
+	// LLM-deduced weighted semantic_relations
+	Connections EntityConnection `json:"connections"`
+
+	// Ghost State (decoupled Data Retention from Visibility)
+	Ghost GhostState `json:"ghost"`
+
+	// Weighted Mastery tracking
+	Mastery MasteryMetrics `json:"mastery"`
+
+	// Audit
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Version   int       `json:"version"`
+}
+
+// NewProjectEntity creates entity with Ghost State defaults (owned: false, status: null)
+func NewProjectEntity(id string, entityType string, properties map[string]interface{}) *ProjectEntity {
+	now := time.Now()
+	return &ProjectEntity{
+		ID:         id,
+		Type:       entityType,
+		Properties: properties,
+		Ghost: GhostState{
+			Owned:         false, // Default: Ghost State
+			Status:        nil,   // Default: null
+			FirstSighted:  now,
+			LastSighted:   now,
+			SightingCount: 0,
+			Sightings:     []Sighting{},
+		},
+		Mastery: MasteryMetrics{
+			MasteryScore:    0.0,
+			ConfidenceSum:   0.0,
+			WeightedMastery: 0.0,
+			SightingsCount:  0,
+		},
+		Connections: EntityConnection{
+			Incoming: []SemanticRelation{},
+			Outgoing: []SemanticRelation{},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+		Version:   1,
+	}
+}
+
+// AddSighting performs "Blind Update" - tracks all occurrences regardless of ownership
+func (e *ProjectEntity) AddSighting(sighting Sighting) {
+	e.Ghost.Sightings = append(e.Ghost.Sightings, sighting)
+	e.Ghost.SightingCount++
+	e.Ghost.LastSighted = sighting.Timestamp
+	e.Mastery.SightingsCount++
+	e.Version++
+	e.UpdatedAt = time.Now()
+}
+
+// CalculateWeightedMastery implements: W_final = Σ(Mastery · Confidence) / N_sightings
+func (e *ProjectEntity) CalculateWeightedMastery() float64 {
+	if e.Mastery.SightingsCount == 0 {
+		e.Mastery.WeightedMastery = 0.0
+		return 0.0
+	}
+
+	confidence := 0.7 // default threshold
+	if c, ok := e.Properties["validity_confidence"].(float64); ok {
+		confidence = c
+	}
+
+	numerator := e.Mastery.MasteryScore * confidence
+	e.Mastery.WeightedMastery = numerator / float64(e.Mastery.SightingsCount)
+	return e.Mastery.WeightedMastery
+}
+
+// IsVisible returns true if entity should appear in Active Toolkit
+// Criteria: owned=true AND validity_confidence >= 0.7 AND weighted_mastery > 0.5
+func (e *ProjectEntity) IsVisible() bool {
+	// Noise filter: validity_confidence < 0.7 = hidden
+	var confidence float64 = 1.0
+	if c, ok := e.Properties["validity_confidence"].(float64); ok {
+		confidence = c
+	}
+	if confidence < 0.7 {
+		return false
+	}
+
+	// Ghost State filter
+	if !e.Ghost.Owned {
+		return false
+	}
+
+	// Weighted mastery threshold: W_final > 0.5
+	if e.Mastery.WeightedMastery <= 0.5 {
+		return false
+	}
+
+	return true
+}
+
+// PromoteToOwned moves Ghost item to Active Toolkit
+func (e *ProjectEntity) PromoteToOwned(status string) {
+	e.Ghost.Owned = true
+	e.Ghost.Status = &status
+	e.UpdatedAt = time.Now()
+}
+
+// AccomplishmentPath generates storage path: data/rooms/{studentId}/accomplishments/{id}.json
+func (e *ProjectEntity) AccomplishmentPath(studentID string) string {
+	return fmt.Sprintf("data/rooms/%s/accomplishments/%s.json", studentID, e.ID)
+}

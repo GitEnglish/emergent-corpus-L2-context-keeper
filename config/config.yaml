@@ -1,0 +1,177 @@
+# config/config.yaml
+# Redleaves Context-Keeper - Gluttonous Ingestion Engine Fork
+# Multi-tenant configuration for boutique tutoring practice (25 students)
+
+service:
+  name: "context-keeper-tutoring-fork"
+  version: "3.0.0-gluttonous"
+  
+  # Room Isolation for Digital Twins
+  # Each student gets an isolated "Room" to prevent cross-contamination
+  # Set via ENV var: ROOM_ID=student_alpha
+  storage_path: "./data/rooms/${ROOM_ID}/accomplishments"
+  
+  # Ghost State storage (the "invisible majority")
+  ghost_state_path: "./data/rooms/${ROOM_ID}/ghost_state"
+  
+  # Metadata for the student's Digital Twin
+  digital_twin_manifest: "./data/rooms/${ROOM_ID}/twin_manifest.json"
+
+# Memory Architecture - Decoupled Storage
+memory:
+  # Short-term: Session capture buffer (volatile)
+  short_term:
+    type: "local"
+    path: "./data/rooms/${ROOM_ID}/capture.json"
+    max_items: 1000
+    
+  # Medium-term: File-based accomplishment storage
+  medium_term:
+    type: "filesystem"
+    base_path: "./data/rooms/${ROOM_ID}"
+    format: "json"
+    
+  # Long-term analytical store: DuckDB-Wasm for client-side analytics
+  # This powers the Lexical Spread calculations without server load
+  analytical_store:
+    type: "duckdb"
+    path: "./data/rooms/${ROOM_ID}/lexical_spread.duckdb"
+    wasm_enabled: true
+    
+    # Pre-computed views for Sanity Studio consumption
+    views:
+      - name: "token_frequency"
+        query: "SELECT surface_form, COUNT(*) as freq FROM phenomena GROUP BY surface_form"
+      - name: "error_patterns"
+        query: "SELECT errant_triad, grammatical_category, COUNT(*) as count FROM phenomena WHERE errant_triad IS NOT NULL GROUP BY errant_triad, grammatical_category"
+      - name: "mastery_velocity"
+        query: "SELECT mastery_category, AVG(weighted_mastery) as avg_mastery FROM phenomena WHERE owned = true GROUP BY mastery_category"
+
+# Ingestion Engine Configuration
+ingestion:
+  # Zero-Filter Capture: Extract EVERY linguistic phenomenon
+  zero_filter_mode: true
+  
+  # Target capture count per session (your 600+ goal)
+  target_items_per_session: 600
+  
+  # Ghost State defaults
+  default_owned: false
+  default_status: null
+  
+  # ERRAnT Triad classification
+  errant_classification:
+    enabled: true
+    triad_values: ["M", "R", "U"]
+    definitions:
+      M: "Missing - should have been used but wasn't"
+      R: "Replacement - wrong form used instead of target"
+      U: "Addition - unnecessary element was added"
+  
+  # Mastery Categories (4-13 represent your curriculum stages)
+  mastery_categories:
+    range: [4, 13]
+    default_mastery_score: 1.0  # For Cat 4-13 successes
+    
+  # Audit trail requirements
+  audit_requirements:
+    pattern_source: "deduced"  # Always for LLM-extracted
+    require_reasoning_chain: true
+    require_validity_confidence: true
+
+# Reasoning Engine Configuration
+reasoning:
+  # Noise Filter: Hide patterns where validity_confidence < 0.7
+  confidence_threshold: 0.7
+  
+  # Weighted Mastery Formula: W_final = Σ(Mastery · Confidence) / N_sightings
+  weighting:
+    formula: "weighted_average"
+    min_sightings_for_calculation: 1
+    
+  # Visibility threshold: edges only materialize if W_final > 0.5
+  visibility_threshold: 0.5
+  
+  # Semantic relation types enabled for LLM deduction
+  relation_types:
+    - "metaphorical"
+    - "taxonomic"
+    - "collocational"
+    - "derivational"
+    - "functional"
+
+# Sanity Studio v5 Integration
+sanity:
+  project_id: "${SANITY_PROJECT_ID}"
+  dataset: "${SANITY_DATASET}"
+  api_version: "v2024-04-26"
+  
+  # Document types for the linguistic phenomena
+  document_types:
+    - name: "linguisticPhenomenon"
+      title: "Linguistic Phenomenon"
+      fields:
+        - name: "surfaceForm"
+          type: "string"
+        - name: "targetForm"
+          type: "string"
+        - name: "grammaticalCategory"
+          type: "string"
+        - name: "errantTriad"
+          type: "string"
+          options:
+            list: ["M", "R", "U"]
+        - name: "masteryCategory"
+          type: "number"
+        - name: "ghostState"
+          type: "object"
+          fields:
+            - name: "owned"
+              type: "boolean"
+            - name: "status"
+              type: "string"
+            - name: "sightingCount"
+              type: "number"
+    
+  # Real-time sync configuration
+  sync:
+    enabled: true
+    webhook_url: "${WEBHOOK_URL}"
+    
+  # Client-side DuckDB-Wasm streaming
+  duckdb_integration:
+    enabled: true
+    table_name: "phenomena"
+    streaming_batch_size: 100
+
+# LLM Configuration for Gluttonous Ingestion
+llm:
+  provider: "${LLM_PROVIDER}"
+  model: "${LLM_MODEL}"
+  
+  # The Meta-Prompt injection point
+  # See: pkg/extractor/prompt.go for the full induction rules
+  extraction_mode: "gluttonous_ingestion"
+  
+  # Rate limiting for 600+ items per session
+  rate_limit:
+    requests_per_minute: 60
+    max_tokens_per_request: 4000
+    
+  # Confidence calibration
+  confidence_calibration:
+    enabled: true
+    min_confidence: 0.0
+    max_confidence: 1.0
+
+# Student Room Management (25 students)
+rooms:
+  max_rooms: 25
+  initialization:
+    create_accomplishments_dir: true
+    create_ghost_state_dir: true
+    create_duckdb_file: true
+    seed_manifest: true
+  
+  # List of student IDs (populated by init script)
+  # students: ["student_alpha", "student_beta", ...]
